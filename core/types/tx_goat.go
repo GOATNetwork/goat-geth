@@ -55,22 +55,8 @@ type GoatTx struct {
 	inner goattypes.Tx `rlp:"-"`
 }
 
-func NewGoatTx(m goattypes.Module, a goattypes.Action, nonce uint64, tx goattypes.Tx) (*GoatTx, error) {
-	buf := encodeBufferPool.Get().(*bytes.Buffer)
-	defer encodeBufferPool.Put(buf)
-	buf.Reset()
-
-	if err := tx.Encode(buf); err != nil {
-		return nil, err
-	}
-
-	return &GoatTx{
-		Module: m,
-		Action: a,
-		Nonce:  nonce,
-		Data:   buf.Bytes(),
-		inner:  tx,
-	}, nil
+func NewGoatTx(module goattypes.Module, action goattypes.Action, nonce uint64, tx goattypes.Tx) *GoatTx {
+	return &GoatTx{Module: module, Action: action, Nonce: nonce, Data: tx.Encode(), inner: tx}
 }
 
 // copy creates a deep copy of the transaction data and initializes all fields.

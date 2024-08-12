@@ -1,7 +1,6 @@
 package goattypes
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"math/big"
@@ -38,59 +37,41 @@ func (tx *DepositTx) MethodId() [4]byte {
 	return [4]byte{0xb5, 0x5a, 0xda, 0x39}
 }
 
-func (tx *DepositTx) Encode(b *bytes.Buffer) error {
+func (tx *DepositTx) Size() int {
+	return 132
+}
+
+func (tx *DepositTx) Encode() []byte {
+	b := make([]byte, 0, tx.Size())
+
 	method := tx.MethodId()
-	if _, err := b.Write(method[:]); err != nil {
-		return err
-	}
+	b = append(b, method[:]...)
 
 	txout := make([]byte, 32)
 	binary.BigEndian.PutUint32(txout[28:], tx.TxOut)
-	if _, err := b.Write(txout); err != nil {
-		return err
-	}
+	b = append(b, txout...)
 
-	if _, err := b.Write(common.LeftPadBytes(tx.Target[:], 32)); err != nil {
-		return err
-	}
+	b = append(b, common.LeftPadBytes(tx.Target[:], 32)...)
+	b = append(b, tx.Amount.FillBytes(make([]byte, 32))...)
 
-	if _, err := b.Write(tx.Amount.FillBytes(make([]byte, 32))); err != nil {
-		return err
-	}
-	return nil
+	return b
 }
 
 func (tx *DepositTx) Decode(input []byte) error {
-	if len(input) != 132 {
+	if len(input) != tx.Size() {
 		return errors.New("Invalid input data for deposit tx")
 	}
 
-	r := bytes.NewReader(input)
-	var method [4]byte
-	if _, err := r.Read(method[:]); err != nil {
-		return err
-	}
-	if method != tx.MethodId() {
+	if [4]byte(input[:4]) != tx.MethodId() {
 		return errors.New("not a deposit tx")
 	}
+	input = input[4:]
 
-	buf := make([]byte, 32)
-	if _, err := r.Read(buf); err != nil {
-		return err
-	}
-	tx.TxOut = binary.BigEndian.Uint32(buf[28:])
+	tx.TxOut = binary.BigEndian.Uint32(input[28:32])
+	input = input[32:]
 
-	if _, err := r.Read(buf); err != nil {
-		return err
-	}
-	tx.Target = common.BytesToAddress(buf)
-
-	if _, err := r.Read(buf); err != nil {
-		return err
-	}
-	tx.Amount = new(big.Int).SetBytes(buf)
-
-	// don't need to check if the reader is drain
+	tx.Target = common.BytesToAddress(input[:32])
+	tx.Amount = new(big.Int).SetBytes(input[32:])
 	return nil
 }
 
@@ -122,26 +103,24 @@ func (tx *Cancel2Tx) Copy() Tx {
 	}
 }
 
-func (tx *Cancel2Tx) Encode(b *bytes.Buffer) error {
+func (tx *Cancel2Tx) Size() int {
+	return 36
+}
+
+func (tx *Cancel2Tx) Encode() []byte {
+	b := make([]byte, 0, tx.Size())
 	method := tx.MethodId()
-	if _, err := b.Write(method[:]); err != nil {
-		return err
-	}
-
-	if _, err := b.Write(tx.Id.FillBytes(make([]byte, 32))); err != nil {
-		return err
-	}
-
-	return nil
+	b = append(b, method[:]...)
+	b = append(b, tx.Id.FillBytes(make([]byte, 32))...)
+	return b
 }
 
 func (tx *Cancel2Tx) Decode(input []byte) error {
-	if len(input) != 36 {
+	if len(input) != tx.Size() {
 		return errors.New("Invalid input data for cancel2 tx")
 	}
 
-	method := tx.MethodId()
-	if bytes.Equal(input[:4], method[:]) {
+	if [4]byte(input[:4]) != tx.MethodId() {
 		return errors.New("not a cancel2 tx")
 	}
 	tx.Id = new(big.Int).SetBytes(input[4:])
@@ -176,6 +155,10 @@ type PaidTx struct {
 	Amount *big.Int
 }
 
+func (tx *PaidTx) Size() int {
+	return 132
+}
+
 func (tx *PaidTx) isGoatTx() {}
 
 func (tx *PaidTx) Copy() Tx {
@@ -187,68 +170,41 @@ func (tx *PaidTx) Copy() Tx {
 	}
 }
 
-func (tx *PaidTx) Encode(b *bytes.Buffer) error {
+func (tx *PaidTx) Encode() []byte {
+	b := make([]byte, 0, tx.Size())
+
 	method := tx.MethodId()
-	if _, err := b.Write(method[:]); err != nil {
-		return err
-	}
+	b = append(b, method[:]...)
 
-	if _, err := b.Write(tx.Id.FillBytes(make([]byte, 32))); err != nil {
-		return err
-	}
-
-	if _, err := b.Write(tx.Txid[:]); err != nil {
-		return err
-	}
+	b = append(b, tx.Id.FillBytes(make([]byte, 32))...)
+	b = append(b, tx.Txid[:]...)
 
 	txout := make([]byte, 32)
 	binary.BigEndian.PutUint32(txout[28:], tx.TxOut)
-	if _, err := b.Write(txout); err != nil {
-		return err
-	}
+	b = append(b, txout...)
 
-	if _, err := b.Write(tx.Amount.FillBytes(make([]byte, 32))); err != nil {
-		return err
-	}
-	return nil
+	b = append(b, tx.Amount.FillBytes(make([]byte, 32))...)
+	return b
 }
 
 func (tx *PaidTx) Decode(input []byte) error {
-	if len(input) != 132 {
+	if len(input) != tx.Size() {
 		return errors.New("Invalid input data for deposit tx")
 	}
 
-	r := bytes.NewReader(input)
-	var method [4]byte
-	if _, err := r.Read(method[:]); err != nil {
-		return err
-	}
-	if method != tx.MethodId() {
+	if [4]byte(input[:4]) != tx.MethodId() {
 		return errors.New("not a paid tx")
 	}
+	input = input[4:]
 
-	buf := make([]byte, 32)
-	if _, err := r.Read(buf); err != nil {
-		return err
-	}
-	tx.Id = new(big.Int).SetBytes(buf)
+	tx.Id = new(big.Int).SetBytes(input[:32])
+	input = input[32:]
 
-	if _, err := r.Read(buf); err != nil {
-		return err
-	}
-	tx.Txid = common.BytesToHash(buf)
+	tx.Txid = common.BytesToHash(input[:32])
+	input = input[32:]
 
-	if _, err := r.Read(buf); err != nil {
-		return err
-	}
-	tx.TxOut = binary.BigEndian.Uint32(buf[28:])
-
-	if _, err := r.Read(buf); err != nil {
-		return err
-	}
-	tx.Amount = new(big.Int).SetBytes(buf)
-
-	// don't need to check if the reader is drain
+	tx.TxOut = binary.BigEndian.Uint32(input[28:32])
+	tx.Amount = new(big.Int).SetBytes(input[32:])
 	return nil
 }
 

@@ -1,7 +1,6 @@
 package goattypes
 
 import (
-	"bytes"
 	"fmt"
 	"math/big"
 
@@ -24,8 +23,9 @@ type Mint struct {
 
 type Tx interface {
 	isGoatTx()
-	Encode(b *bytes.Buffer) error
-	Decode(input []byte) error
+	Size() int
+	Encode() []byte
+	Decode([]byte) error
 	Copy() Tx
 	Deposit() *Mint
 	Reward() *Mint
