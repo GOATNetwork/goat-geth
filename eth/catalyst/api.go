@@ -359,6 +359,22 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	// sealed by the beacon client. The payload will be requested later, and we
 	// will replace it arbitrarily many times in between.
 	if payloadAttributes != nil {
+		if d := len(payloadAttributes.GoatTxs); d > params.GoatTxLimitPerBlock {
+			return engine.STATUS_INVALID, fmt.Errorf("goat tx size too large(size %d)", d)
+		}
+
+		goatTxs := make([]*types.Transaction, 0, len(payloadAttributes.GoatTxs))
+		for i, otx := range payloadAttributes.GoatTxs {
+			var tx = new(types.Transaction)
+			if err := tx.UnmarshalBinary(otx); err != nil {
+				return engine.STATUS_INVALID, fmt.Errorf("not a valid transaction %d: %v", i, err)
+			}
+			if !tx.IsGoatTx() {
+				return engine.STATUS_INVALID, fmt.Errorf("not a goat tx %d", i)
+			}
+			goatTxs = append(goatTxs, tx)
+		}
+
 		args := &miner.BuildPayloadArgs{
 			Parent:       update.HeadBlockHash,
 			Timestamp:    payloadAttributes.Timestamp,
@@ -367,6 +383,8 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			Withdrawals:  payloadAttributes.Withdrawals,
 			BeaconRoot:   payloadAttributes.BeaconRoot,
 			Version:      payloadVersion,
+
+			GoatTxs: goatTxs,
 		}
 		id := args.Id()
 		// If we already are busy generating this work, then we do not need

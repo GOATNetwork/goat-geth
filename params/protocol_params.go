@@ -194,3 +194,9 @@ var (
 	// SystemAddress is where the system-transaction is sent from as per EIP-4788
 	SystemAddress = common.HexToAddress("0xfffffffffffffffffffffffffffffffffffffffe")
 )
+
+const (
+	GoatHeaderExtraLengthV0 = 33
+	GoatTxLimitPerBlock     = 100
+	GoatTxGasLimit          = 30_000_000 // the goat tx gas limit, it's the same with eth system tx
+)

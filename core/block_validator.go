@@ -69,6 +69,19 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 		return fmt.Errorf("transaction root hash mismatch (header value %x, calculated %x)", header.TxHash, hash)
 	}
 
+	extra := block.Header().Extra
+	if len(extra) != params.GoatHeaderExtraLengthV0 {
+		return fmt.Errorf("no system root found (block %x)", block.Number())
+	}
+
+	goatTxLen, goatTxRoot := int(extra[0]), common.BytesToHash(extra[1:params.GoatHeaderExtraLengthV0])
+	if l := block.Transactions().Len(); l < goatTxLen {
+		return fmt.Errorf("txs length(%d) is less than goat tx length %d", l, goatTxLen)
+	}
+	if hash := types.DeriveSha(block.Transactions()[:goatTxLen], trie.NewStackTrie(nil)); hash != goatTxRoot {
+		return fmt.Errorf("system transaction root hash mismatch (header value %x, calculated %x)", goatTxRoot, hash)
+	}
+
 	// Withdrawals are present after the Shanghai fork.
 	if header.WithdrawalsHash != nil {
 		// Withdrawals list must be present in body after Shanghai.
@@ -86,6 +99,19 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 	// Blob transactions may be present after the Cancun fork.
 	var blobs int
 	for i, tx := range block.Transactions() {
+		if i < goatTxLen {
+			if !tx.IsGoatTx() {
+				return fmt.Errorf("transaction %d should be goat tx", i)
+			}
+			if tx.To() == nil {
+				return fmt.Errorf("goat tx %d should have receiver address", i)
+			}
+		} else {
+			if tx.IsGoatTx() {
+				return fmt.Errorf("transaction %d should not be goat tx", i)
+			}
+		}
+
 		// Count the number of blobs to validate against the header's blobGasUsed
 		blobs += len(tx.BlobHashes())
 

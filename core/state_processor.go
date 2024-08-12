@@ -23,10 +23,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types/goattypes"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -62,6 +65,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		blockNumber = block.Number()
 		allLogs     []*types.Log
 		gp          = new(GasPool).AddGas(block.GasLimit())
+
+		burntFees = new(big.Int)
+		gasReward = new(big.Int) // gas reward to validators and delegators
 	)
 
 	// Mutate the block and state according to any hard-fork specs
@@ -91,7 +97,26 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		}
 		receipts = append(receipts, receipt)
 		allLogs = append(allLogs, receipt.Logs...)
+
+		tipFee := new(big.Int).SetUint64(receipt.GasUsed)
+		tipFee.Mul(tipFee, tx.EffectiveGasTipValue(context.BaseFee))
+		gasReward.Add(gasReward, tipFee)
 	}
+
+	if context.BaseFee != nil && header.GasUsed > 0 {
+		burntFees.Mul(context.BaseFee, new(big.Int).SetUint64(header.GasUsed))
+	}
+
+	if gasUsed := header.BlobGasUsed; context.BlobBaseFee != nil && gasUsed != nil && *gasUsed > 0 {
+		blobUsed := new(big.Int).SetUint64(*gasUsed)
+		blobFee := new(big.Int).Mul(blobUsed, context.BlobBaseFee)
+		burntFees.Add(burntFees, blobFee)
+	}
+
+	gasReward.Add(gasReward, ProcessGoatFoundationReward(statedb, burntFees))
+
+	// todo: handle gas reward to the consensus request
+
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.chain.engine.Finalize(p.chain, header, statedb, block.Body())
 
@@ -200,4 +225,25 @@ func ProcessBeaconBlockRoot(beaconRoot common.Hash, vmenv *vm.EVM, statedb *stat
 	statedb.AddAddressToAccessList(params.BeaconRootsAddress)
 	_, _, _ = vmenv.Call(vm.AccountRef(msg.From), *msg.To, msg.Data, 30_000_000, common.U2560)
 	statedb.Finalise(true)
+}
+
+var (
+	gfBasePoint    = big.NewInt(200)
+	gfMaxBasePoint = big.NewInt(1e4)
+)
+
+func ProcessGoatFoundationReward(statedb *state.StateDB, burntFee *big.Int) *big.Int {
+	if burntFee.BitLen() == 0 {
+		return new(big.Int)
+	}
+
+	// todo: read the config from state db
+
+	reward := new(big.Int).Mul(burntFee, gfBasePoint)
+	reward.Div(reward, gfMaxBasePoint)
+	if reward.BitLen() != 0 {
+		f, _ := uint256.FromBig(reward)
+		statedb.AddBalance(goattypes.GoatFoundationContract, f, tracing.BalanceIncreaseRewardTransactionFee)
+	}
+	return new(big.Int).Sub(burntFee, reward)
 }

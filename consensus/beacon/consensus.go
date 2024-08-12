@@ -229,8 +229,9 @@ func (beacon *Beacon) VerifyUncles(chain consensus.ChainReader, block *types.Blo
 // (c) the extradata is limited to 32 bytes
 func (beacon *Beacon) verifyHeader(chain consensus.ChainHeaderReader, header, parent *types.Header) error {
 	// Ensure that the header's extra-data section is of a reasonable size
-	if len(header.Extra) > int(params.MaximumExtraDataSize) {
-		return fmt.Errorf("extra-data longer than 32 bytes (%d)", len(header.Extra))
+	// system tx count(1byte) + system tx root(32bytes)
+	if len(header.Extra) != params.GoatHeaderExtraLengthV0 {
+		return fmt.Errorf("extra-data should be 33 bytes (%d)", len(header.Extra))
 	}
 	// Verify the seal parts. Ensure the nonce and uncle hash are the expected value.
 	if header.Nonce != beaconNonce {
