@@ -54,8 +54,7 @@ type ValidationOptions struct {
 // This check is public to allow different transaction pools to check the basic
 // rules without duplicating code and running the risk of missed updates.
 func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types.Signer, opts *ValidationOptions) error {
-	// todo: do we need to support blob tx?
-	if tx.IsGoatTx() || tx.Type() == types.BlobTxType {
+	if !tx.IsMemPoolTx() {
 		return core.ErrTxTypeNotSupported
 	}
 

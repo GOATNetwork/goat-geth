@@ -1,13 +1,11 @@
 package goattypes
 
-import "io"
+import (
+	"bytes"
+	"math/big"
 
-type Tx interface {
-	isGoatTx()
-	Encode(w io.Writer) error
-	Decode(r io.Reader) error
-	Copy() Tx
-}
+	"github.com/ethereum/go-ethereum/common"
+)
 
 type Module uint8
 
@@ -18,7 +16,19 @@ const (
 
 type Action uint8
 
-const (
-	BridgeDepoitAction = iota + 1
-	BridgePayedAction
-)
+type Mint struct {
+	Address common.Address
+	Amount  *big.Int
+}
+
+type Tx interface {
+	isGoatTx()
+	Encode(b *bytes.Buffer) error
+	Decode(input []byte) error
+	Copy() Tx
+	Mint() *Mint
+
+	Sender() common.Address
+	Contract() common.Address
+	CallData() []byte
+}

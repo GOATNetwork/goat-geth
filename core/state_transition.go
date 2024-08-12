@@ -151,7 +151,7 @@ type Message struct {
 
 	// goat
 	IsGoatTx bool
-	Deposit  *types.Deposit
+	Deposit  *goattypes.Mint
 }
 
 // TransactionToMessage converts a transaction into a Message.
