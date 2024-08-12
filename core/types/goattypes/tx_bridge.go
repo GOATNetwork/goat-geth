@@ -16,8 +16,6 @@ const (
 	BridgePaidAction
 )
 
-var _ Tx = (*DepositTx)(nil)
-
 type DepositTx struct {
 	Txid   common.Hash
 	TxOut  uint32
@@ -117,7 +115,10 @@ func (tx *PaidTx) isGoatTx() {}
 
 func (tx *PaidTx) Copy() Tx {
 	return &PaidTx{
-		Id: new(big.Int).Set(tx.Id),
+		Id:     new(big.Int).Set(tx.Id),
+		Txid:   tx.Txid,
+		TxOut:  tx.TxOut,
+		Amount: new(big.Int).Set(tx.Amount),
 	}
 }
 
