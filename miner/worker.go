@@ -119,7 +119,7 @@ func (miner *Miner) generateWork(params *generateParams) *newPayloadResult {
 	if work.header.ExcessBlobGas != nil && work.header.BlobGasUsed != nil && *work.header.BlobGasUsed > 0 {
 		blobBaseFee := eip4844.CalcBlobFee(*work.header.ExcessBlobGas)
 		blobUsed := new(big.Int).SetUint64(*work.header.BlobGasUsed)
-		burntFees.Add(burntFees, new(big.Int).Mul(blobUsed, blobBaseFee))
+		burntFees.Add(burntFees, blobUsed.Mul(blobUsed, blobBaseFee))
 	}
 
 	reward := core.ProcessGoatFoundationReward(work.state, burntFees)

@@ -111,8 +111,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	if gasUsed := header.BlobGasUsed; context.BlobBaseFee != nil && gasUsed != nil && *gasUsed > 0 {
 		blobUsed := new(big.Int).SetUint64(*gasUsed)
-		blobFee := new(big.Int).Mul(blobUsed, context.BlobBaseFee)
-		burntFees.Add(burntFees, blobFee)
+		burntFees.Add(burntFees, blobUsed.Mul(blobUsed, context.BlobBaseFee))
 	}
 
 	gasReward.Add(gasReward, ProcessGoatFoundationReward(statedb, burntFees))
