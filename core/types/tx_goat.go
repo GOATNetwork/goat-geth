@@ -110,14 +110,11 @@ func (tx *GoatTx) encode(b *bytes.Buffer) error {
 }
 
 func (tx *GoatTx) decode(input []byte) error {
-	if err := rlp.DecodeBytes(input, tx); err != nil {
-		return err
-	}
-	inner, err := goattypes.TxDecode(tx.Module, tx.Action, tx.Data)
+	err := rlp.DecodeBytes(input, tx)
 	if err != nil {
 		return err
 	}
-	tx.inner = inner
+	tx.inner, err = goattypes.TxDecode(tx.Module, tx.Action, tx.Data)
 	return err
 }
 

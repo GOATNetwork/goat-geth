@@ -500,7 +500,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		gasUsed := st.gasUsed()
 
 		// refund all of gas used
-		if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil && st.gasRemaining > 0 {
+		if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
 			st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.initialGas, tracing.GasChangeTxRefunds)
 		}
 		st.gp.AddGas(gasUsed)

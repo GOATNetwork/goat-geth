@@ -132,7 +132,7 @@ func (tx *Cancel2Tx) Encode(b *bytes.Buffer) error {
 }
 
 func (tx *Cancel2Tx) Decode(input []byte) error {
-	if len(input) != 132 {
+	if len(input) != 36 {
 		return errors.New("Invalid input data for cancel2 tx")
 	}
 
