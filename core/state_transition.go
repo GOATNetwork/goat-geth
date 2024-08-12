@@ -150,8 +150,9 @@ type Message struct {
 	SkipAccountChecks bool
 
 	// goat
-	IsGoatTx bool
-	Deposit  *goattypes.Mint
+	IsGoatTx bool            // goat tx has no gas consumed
+	Deposit  *goattypes.Mint // deposit from L1
+	Reward   *goattypes.Mint // reward claimed from consensus layer
 }
 
 // TransactionToMessage converts a transaction into a Message.
@@ -173,6 +174,7 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 		// goat
 		IsGoatTx: tx.IsGoatTx(),
 		Deposit:  tx.Deposit(),
+		Reward:   tx.Reward(),
 	}
 	// If baseFee provided, set gasPrice to effectiveGasPrice.
 	if baseFee != nil {
@@ -495,6 +497,18 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			// add the deposit value(withtout tax) to the target
 			log.Debug("NewDeposit", "address", v.Address, "amount", amount, "tax", tax)
 			st.state.AddBalance(v.Address, amount, tracing.BalanceGoatDepoist)
+		}
+
+		// distribute reward to a validator or a delegator
+		if v := msg.Reward; v != nil {
+			amount, ok := uint256.FromBig(v.Amount)
+			if !ok {
+				return nil, fmt.Errorf("goat tx failed (invalid amount to distribute reward: %s)", v.Amount)
+			}
+
+			// add the reward value to the target
+			log.Debug("NewReward", "address", v.Address, "amount", amount)
+			st.state.AddBalance(v.Address, amount, tracing.BalanceIncreaseWithdrawal)
 		}
 
 		gasUsed := st.gasUsed()

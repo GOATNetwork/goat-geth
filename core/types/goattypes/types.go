@@ -27,7 +27,8 @@ type Tx interface {
 	Encode(b *bytes.Buffer) error
 	Decode(input []byte) error
 	Copy() Tx
-	Mint() *Mint
+	Deposit() *Mint
+	Reward() *Mint
 
 	Sender() common.Address
 	Contract() common.Address

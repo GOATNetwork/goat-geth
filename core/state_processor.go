@@ -98,9 +98,11 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		receipts = append(receipts, receipt)
 		allLogs = append(allLogs, receipt.Logs...)
 
-		tipFee := new(big.Int).SetUint64(receipt.GasUsed)
-		tipFee.Mul(tipFee, tx.EffectiveGasTipValue(context.BaseFee))
-		gasReward.Add(gasReward, tipFee)
+		if receipt.GasUsed > 0 { // non-goatTx case
+			tipFee := new(big.Int).SetUint64(receipt.GasUsed)
+			tipFee.Mul(tipFee, tx.EffectiveGasTipValue(context.BaseFee))
+			gasReward.Add(gasReward, tipFee)
+		}
 	}
 
 	if context.BaseFee != nil && header.GasUsed > 0 {

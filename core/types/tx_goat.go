@@ -30,7 +30,14 @@ func (tx *Transaction) Deposit() *goattypes.Mint {
 	if !tx.IsGoatTx() {
 		return nil
 	}
-	return tx.inner.(*GoatTx).inner.Mint()
+	return tx.inner.(*GoatTx).inner.Deposit()
+}
+
+func (tx *Transaction) Reward() *goattypes.Mint {
+	if !tx.IsGoatTx() {
+		return nil
+	}
+	return tx.inner.(*GoatTx).inner.Reward()
 }
 
 // 👆 addition methods to transaction

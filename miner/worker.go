@@ -465,8 +465,13 @@ func (miner *Miner) fillTransactions(interrupt *atomic.Int32, env *environment) 
 func totalFees(block *types.Block, receipts []*types.Receipt) *big.Int {
 	feesWei := new(big.Int)
 	for i, tx := range block.Transactions() {
+		gasUsed := receipts[i].GasUsed
+		if gasUsed == 0 { // ignore goat tx
+			continue
+		}
+
 		minerFee, _ := tx.EffectiveGasTip(block.BaseFee())
-		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
+		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), minerFee))
 	}
 	return feesWei
 }

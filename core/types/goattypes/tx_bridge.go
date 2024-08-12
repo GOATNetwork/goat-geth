@@ -102,8 +102,12 @@ func (tx *DepositTx) Contract() common.Address {
 	return BridgeContract
 }
 
-func (tx *DepositTx) Mint() *Mint {
+func (tx *DepositTx) Deposit() *Mint {
 	return &Mint{tx.Target, new(big.Int).Set(tx.Amount)}
+}
+
+func (tx *DepositTx) Reward() *Mint {
+	return nil
 }
 
 type Cancel2Tx struct {
@@ -152,7 +156,11 @@ func (tx *Cancel2Tx) Contract() common.Address {
 	return BridgeContract
 }
 
-func (tx *Cancel2Tx) Mint() *Mint {
+func (tx *Cancel2Tx) Deposit() *Mint {
+	return nil
+}
+
+func (tx *Cancel2Tx) Reward() *Mint {
 	return nil
 }
 
@@ -252,7 +260,11 @@ func (tx *PaidTx) Contract() common.Address {
 	return BridgeContract
 }
 
-func (tx *PaidTx) Mint() *Mint {
+func (tx *PaidTx) Deposit() *Mint {
+	return nil
+}
+
+func (tx *PaidTx) Reward() *Mint {
 	return nil
 }
 
