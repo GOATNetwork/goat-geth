@@ -12,7 +12,7 @@ type Module uint8
 
 const (
 	BirdgeModule Module = iota + 1
-	StakingModule
+	LockingModule
 )
 
 type Action uint8
