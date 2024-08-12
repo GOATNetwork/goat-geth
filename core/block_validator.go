@@ -71,7 +71,7 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 
 	extra := block.Header().Extra
 	if len(extra) != params.GoatHeaderExtraLengthV0 {
-		return fmt.Errorf("no system root found (block %x)", block.Number())
+		return fmt.Errorf("no goat tx root found (block %x)", block.Number())
 	}
 
 	goatTxLen, goatTxRoot := int(extra[0]), common.BytesToHash(extra[1:params.GoatHeaderExtraLengthV0])
@@ -79,7 +79,7 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 		return fmt.Errorf("txs length(%d) is less than goat tx length %d", l, goatTxLen)
 	}
 	if hash := types.DeriveSha(block.Transactions()[:goatTxLen], trie.NewStackTrie(nil)); hash != goatTxRoot {
-		return fmt.Errorf("system transaction root hash mismatch (header value %x, calculated %x)", goatTxRoot, hash)
+		return fmt.Errorf("goat tx root hash mismatch (header value %x, calculated %x)", goatTxRoot, hash)
 	}
 
 	// Withdrawals are present after the Shanghai fork.

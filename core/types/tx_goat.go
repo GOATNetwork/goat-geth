@@ -2,7 +2,6 @@ package types
 
 import (
 	"bytes"
-	"fmt"
 	"math/big"
 	"slices"
 
@@ -44,7 +43,7 @@ type GoatTx struct {
 	Module goattypes.Module `json:"module"`
 	Action goattypes.Action `json:"action"`
 	Nonce  uint64           `json:"nonce"`
-	RawTx  []byte           `json:"data"`
+	Data   []byte           `json:"data"` // abi encoded input
 
 	inner goattypes.Tx `rlp:"-"`
 }
@@ -62,7 +61,7 @@ func NewGoatTx(m goattypes.Module, a goattypes.Action, nonce uint64, tx goattype
 		Module: m,
 		Action: a,
 		Nonce:  nonce,
-		RawTx:  buf.Bytes(),
+		Data:   buf.Bytes(),
 		inner:  tx,
 	}, nil
 }
@@ -73,7 +72,7 @@ func (tx *GoatTx) copy() TxData {
 		Module: tx.Module,
 		Action: tx.Action,
 		Nonce:  tx.Nonce,
-		RawTx:  slices.Clone(tx.RawTx),
+		Data:   slices.Clone(tx.Data),
 		inner:  tx.inner.Copy(),
 	}
 	return cpy
@@ -83,7 +82,7 @@ func (tx *GoatTx) copy() TxData {
 func (tx *GoatTx) txType() byte           { return GoatTxType }
 func (tx *GoatTx) chainID() *big.Int      { return common.Big0 }
 func (tx *GoatTx) accessList() AccessList { return nil }
-func (tx *GoatTx) data() []byte           { return tx.inner.CallData() }
+func (tx *GoatTx) data() []byte           { return tx.Data }
 func (tx *GoatTx) to() *common.Address {
 	c := tx.inner.Contract()
 	return &c
@@ -107,16 +106,6 @@ func (tx *GoatTx) rawSignatureValues() (v, r, s *big.Int) {
 func (tx *GoatTx) setSignatureValues(chainID, v, r, s *big.Int) {}
 
 func (tx *GoatTx) encode(b *bytes.Buffer) error {
-	if tx.RawTx == nil {
-		buf := encodeBufferPool.Get().(*bytes.Buffer)
-		defer encodeBufferPool.Put(buf)
-		buf.Reset()
-
-		if err := tx.inner.Encode(buf); err != nil {
-			return err
-		}
-		tx.RawTx = buf.Bytes()
-	}
 	return rlp.Encode(b, tx)
 }
 
@@ -124,23 +113,12 @@ func (tx *GoatTx) decode(input []byte) error {
 	if err := rlp.DecodeBytes(input, tx); err != nil {
 		return err
 	}
-
-	var inner goattypes.Tx
-	switch tx.Module {
-	case goattypes.BirdgeModule:
-		switch tx.Action {
-		case goattypes.BridgeDepoitAction:
-			inner = new(goattypes.DepositTx)
-		case goattypes.BridgeCancel2Action:
-			inner = new(goattypes.Cacel2Tx)
-		case goattypes.BridgePaidAction:
-			inner = new(goattypes.PaidTx)
-		}
+	inner, err := goattypes.TxDecode(tx.Module, tx.Action, tx.Data)
+	if err != nil {
+		return err
 	}
-	if inner == nil {
-		return fmt.Errorf("unrecognized tx(module %d action %d)", tx.Module, tx.Action)
-	}
-	return inner.Decode(tx.RawTx)
+	tx.inner = inner
+	return err
 }
 
 func (tx *GoatTx) Sender() common.Address {
