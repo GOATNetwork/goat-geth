@@ -481,7 +481,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 			// get the tax from call returns
 			if len(ret) != 32 {
-				return nil, fmt.Errorf("goat tx failed (deposit should returns uint256 but got %x)", ret)
+				return nil, fmt.Errorf("goat tx failed (deposit should return uint256 but got %x)", ret)
 			}
 			tax, ok := uint256.FromBig(new(big.Int).SetBytes(ret))
 			if !ok {
@@ -490,6 +490,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 			// sub the tax and pay the tax to GF
 			if tax.BitLen() > 0 {
+				if amount.Cmp(tax) < 0 {
+					return nil, fmt.Errorf("goat tx failed (tax is larger than deposit: deposit %s tax %s)", v.Amount, tax)
+				}
 				amount.Sub(amount, tax)
 				st.state.AddBalance(goattypes.GoatFoundationContract, tax, tracing.BalanceGoatTax)
 			}
