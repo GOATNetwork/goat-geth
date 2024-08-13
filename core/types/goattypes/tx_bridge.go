@@ -47,6 +47,8 @@ func (tx *DepositTx) Encode() []byte {
 	method := tx.MethodId()
 	b = append(b, method[:]...)
 
+	b = append(b, tx.Txid[:]...)
+
 	txout := make([]byte, 32)
 	binary.BigEndian.PutUint32(txout[28:], tx.TxOut)
 	b = append(b, txout...)
@@ -66,6 +68,9 @@ func (tx *DepositTx) Decode(input []byte) error {
 		return errors.New("not a deposit tx")
 	}
 	input = input[4:]
+
+	tx.Txid = common.BytesToHash(input[:32])
+	input = input[32:]
 
 	tx.TxOut = binary.BigEndian.Uint32(input[28:32])
 	input = input[32:]
