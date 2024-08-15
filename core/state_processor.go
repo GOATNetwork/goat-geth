@@ -204,6 +204,10 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 // ProcessBeaconBlockRoot applies the EIP-4788 system call to the beacon block root
 // contract. This method is exported to be used in tests.
 func ProcessBeaconBlockRoot(beaconRoot common.Hash, vmenv *vm.EVM, statedb *state.StateDB) {
+	if vmenv.ChainConfig().Goat != nil { // ignore this step for goat
+		return
+	}
+
 	if vmenv.Config.Tracer != nil && vmenv.Config.Tracer.OnSystemCallStart != nil {
 		vmenv.Config.Tracer.OnSystemCallStart()
 	}
