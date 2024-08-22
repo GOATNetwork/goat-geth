@@ -109,9 +109,6 @@ var PrecompiledContractsCancun = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{0x9}): &blake2F{},
 	common.BytesToAddress([]byte{0xa}): &kzgPointEvaluation{},
-
-	// goat precompiled
-	common.BytesToAddress([]byte{0xc0, 0xde, 0xc0, 0x00}): &BtcAddrVerifier{},
 }
 
 // PrecompiledContractsPrague contains the set of pre-compiled Ethereum
@@ -136,9 +133,6 @@ var PrecompiledContractsPrague = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{0x11}): &bls12381Pairing{},
 	common.BytesToAddress([]byte{0x12}): &bls12381MapG1{},
 	common.BytesToAddress([]byte{0x13}): &bls12381MapG2{},
-
-	// goat precompiled
-	common.BytesToAddress([]byte{0xc0, 0xde, 0xc0, 0x00}): &BtcAddrVerifier{},
 }
 
 var PrecompiledContractsBLS = PrecompiledContractsPrague
