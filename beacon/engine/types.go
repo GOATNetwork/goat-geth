@@ -48,6 +48,8 @@ type PayloadAttributes struct {
 	SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
 	Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 	BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
+
+	GoatTxs []hexutil.Bytes `json:"goatTxs,omitempty"  gencodec:"optional"`
 }
 
 // JSON type overrides for PayloadAttributes.

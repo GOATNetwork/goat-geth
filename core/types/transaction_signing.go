@@ -181,6 +181,9 @@ func NewCancunSigner(chainId *big.Int) Signer {
 }
 
 func (s cancunSigner) Sender(tx *Transaction) (common.Address, error) {
+	if tx.IsGoatTx() {
+		return tx.inner.(*GoatTx).Sender(), nil
+	}
 	if tx.Type() != BlobTxType {
 		return s.londonSigner.Sender(tx)
 	}

@@ -23,10 +23,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types/goattypes"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -62,6 +65,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		blockNumber = block.Number()
 		allLogs     []*types.Log
 		gp          = new(GasPool).AddGas(block.GasLimit())
+
+		burntFees = new(big.Int)
+		gasReward = new(big.Int) // gas reward to validators and delegators
 	)
 
 	// Mutate the block and state according to any hard-fork specs
@@ -94,7 +100,28 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		}
 		receipts = append(receipts, receipt)
 		allLogs = append(allLogs, receipt.Logs...)
+
+		if receipt.GasUsed > 0 { // non-goatTx case
+			tipFee := new(big.Int).SetUint64(receipt.GasUsed)
+			tipFee.Mul(tipFee, tx.EffectiveGasTipValue(context.BaseFee))
+			gasReward.Add(gasReward, tipFee)
+		}
 	}
+
+	if context.BaseFee != nil && header.GasUsed > 0 {
+		burntFees.Mul(context.BaseFee, new(big.Int).SetUint64(header.GasUsed))
+	}
+
+	if gasUsed := header.BlobGasUsed; context.BlobBaseFee != nil && gasUsed != nil && *gasUsed > 0 {
+		blobUsed := new(big.Int).SetUint64(*gasUsed)
+		burntFees.Add(burntFees, blobUsed.Mul(blobUsed, context.BlobBaseFee))
+	}
+
+	gasReward.Add(gasReward, burntFees)
+
+	ProcessGoatFoundationReward(statedb, gasReward)
+	// todo: handle gas reward to the consensus request
+
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.chain.engine.Finalize(p.chain, header, statedb, block.Body())
 
@@ -184,9 +211,39 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	return ApplyTransactionWithEVM(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv)
 }
 
+var (
+	gfBasePoint    = big.NewInt(200)
+	gfMaxBasePoint = big.NewInt(1e4)
+)
+
+func ProcessGoatFoundationReward(statedb *state.StateDB, gasFees *big.Int) {
+	if gasFees.BitLen() == 0 {
+		return
+	}
+
+	// foundation tax 2%
+	tax := new(big.Int).Mul(gasFees, gfBasePoint)
+	tax.Div(tax, gfMaxBasePoint)
+
+	if tax.BitLen() != 0 {
+		f, _ := uint256.FromBig(tax)
+		statedb.AddBalance(goattypes.GoatFoundationContract, f, tracing.BalanceIncreaseRewardTransactionFee)
+	}
+
+	reward := new(big.Int).Sub(gasFees, tax)
+	if reward.BitLen() != 0 {
+		f, _ := uint256.FromBig(reward)
+		statedb.AddBalance(goattypes.LockingContract, f, tracing.BalanceIncreaseRewardTransactionFee)
+	}
+}
+
 // ProcessBeaconBlockRoot applies the EIP-4788 system call to the beacon block root
 // contract. This method is exported to be used in tests.
 func ProcessBeaconBlockRoot(beaconRoot common.Hash, vmenv *vm.EVM, statedb *state.StateDB) {
+	if vmenv.ChainConfig().Goat != nil { // ignore this step for goat
+		return
+	}
+
 	if tracer := vmenv.Config.Tracer; tracer != nil {
 		if tracer.OnSystemCallStart != nil {
 			tracer.OnSystemCallStart()
