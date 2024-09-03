@@ -347,7 +347,7 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		}
 
 		var requests types.Requests
-		if config.IsPrague(b.header.Number, b.header.Time) {
+		if config.Goat == nil && config.IsPrague(b.header.Number, b.header.Time) {
 			for _, r := range b.receipts {
 				d, err := ParseDepositLogs(r.Logs, config)
 				if err != nil {

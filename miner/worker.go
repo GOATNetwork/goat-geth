@@ -139,7 +139,7 @@ func (miner *Miner) generateWork(params *generateParams) *newPayloadResult {
 		allLogs = append(allLogs, r.Logs...)
 	}
 	// Read requests if Prague is enabled.
-	if miner.chainConfig.IsPrague(work.header.Number, work.header.Time) {
+	if miner.chainConfig.Goat != nil && miner.chainConfig.IsPrague(work.header.Number, work.header.Time) {
 		requests, err := core.ParseDepositLogs(allLogs, miner.chainConfig)
 		if err != nil {
 			return &newPayloadResult{err: err}
