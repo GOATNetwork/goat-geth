@@ -69,17 +69,50 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 		return fmt.Errorf("transaction root hash mismatch (header value %x, calculated %x)", header.TxHash, hash)
 	}
 
-	extra := block.Header().Extra
-	if len(extra) != params.GoatHeaderExtraLengthV0 {
-		return fmt.Errorf("no goat tx root found (block %x)", block.Number())
-	}
+	// validate rule for Goat
+	if v.config.Goat != nil {
+		extra := block.Header().Extra
+		if len(extra) != params.GoatHeaderExtraLengthV0 {
+			return fmt.Errorf("no goat tx root found (block %x)", block.Number())
+		}
+		goatTxLen, goatTxRoot := int(extra[0]), common.BytesToHash(extra[1:params.GoatHeaderExtraLengthV0])
+		if l := block.Transactions().Len(); l < goatTxLen {
+			return fmt.Errorf("txs length(%d) is less than goat tx length %d", l, goatTxLen)
+		}
+		if hash := types.DeriveSha(block.Transactions()[:goatTxLen], trie.NewStackTrie(nil)); hash != goatTxRoot {
+			return fmt.Errorf("goat tx root hash mismatch (header value %x, calculated %x)", goatTxRoot, hash)
+		}
 
-	goatTxLen, goatTxRoot := int(extra[0]), common.BytesToHash(extra[1:params.GoatHeaderExtraLengthV0])
-	if l := block.Transactions().Len(); l < goatTxLen {
-		return fmt.Errorf("txs length(%d) is less than goat tx length %d", l, goatTxLen)
-	}
-	if hash := types.DeriveSha(block.Transactions()[:goatTxLen], trie.NewStackTrie(nil)); hash != goatTxRoot {
-		return fmt.Errorf("goat tx root hash mismatch (header value %x, calculated %x)", goatTxRoot, hash)
+		if len(block.Withdrawals()) != 0 {
+			return errors.New("withdrawals is not allowed in block body")
+		}
+
+		if header.WithdrawalsHash == nil || *header.WithdrawalsHash != types.EmptyWithdrawalsHash {
+			return errors.New("withdrawals root is not matched")
+		}
+
+		if header.BlobGasUsed == nil || *header.BlobGasUsed > 0 {
+			return errors.New("blob gas should not be used")
+		}
+
+		for i, tx := range block.Transactions() {
+			if i < goatTxLen {
+				if !tx.IsGoatTx() {
+					return fmt.Errorf("transaction %d should be goat tx", i)
+				}
+				if tx.To() == nil {
+					return fmt.Errorf("goat tx %d should have receiver address", i)
+				}
+			} else {
+				if tx.IsGoatTx() {
+					return fmt.Errorf("transaction %d should not be goat tx", i)
+				}
+				if tx.Type() == types.BlobTxType {
+					return fmt.Errorf("blob transaction %d is not allowed", i)
+				}
+			}
+		}
+		return nil
 	}
 
 	// Withdrawals are present after the Shanghai fork.
@@ -99,22 +132,6 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 	// Blob transactions may be present after the Cancun fork.
 	var blobs int
 	for i, tx := range block.Transactions() {
-		if i < goatTxLen {
-			if !tx.IsGoatTx() {
-				return fmt.Errorf("transaction %d should be goat tx", i)
-			}
-			if tx.To() == nil {
-				return fmt.Errorf("goat tx %d should have receiver address", i)
-			}
-		} else {
-			if tx.IsGoatTx() {
-				return fmt.Errorf("transaction %d should not be goat tx", i)
-			}
-			if tx.Type() == types.BlobTxType {
-				return fmt.Errorf("blob transaction %d is not allowed", i)
-			}
-		}
-
 		// Count the number of blobs to validate against the header's blobGasUsed
 		blobs += len(tx.BlobHashes())
 
