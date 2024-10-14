@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types/goattypes"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
@@ -471,7 +472,18 @@ func (g *Genesis) toBlockWithRoot(root common.Hash) *types.Block {
 				head.BlobGasUsed = new(uint64)
 			}
 		}
-		if conf.IsPrague(num, g.Timestamp) {
+
+		if conf.Goat != nil {
+			reqs := [][]byte{}
+			locking := goattypes.LockingRequests{Gas: []*goattypes.GasRequest{goattypes.NewGasRequest(head.Number.Uint64(), new(big.Int))}}
+			reqs = append(reqs, locking.Encode()...)
+			reqs = append(reqs, (&goattypes.BridgeRequests{}).Encode()...)
+			reqs = append(reqs, (&goattypes.RelayerRequests{}).Encode()...)
+			rhash := types.CalcRequestsHash(reqs)
+			head.RequestsHash = &rhash
+		}
+
+		if conf.Goat == nil && conf.IsPrague(num, g.Timestamp) {
 			emptyRequests := [][]byte{{0x00}, {0x01}, {0x02}}
 			rhash := types.CalcRequestsHash(emptyRequests)
 			head.RequestsHash = &rhash

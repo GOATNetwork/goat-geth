@@ -206,6 +206,8 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 		inner = new(DynamicFeeTx)
 	case BlobTxType:
 		inner = new(BlobTx)
+	case GoatTxType:
+		inner = new(GoatTx)
 	default:
 		return nil, ErrTxTypeNotSupported
 	}

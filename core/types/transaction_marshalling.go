@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types/goattypes"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/holiman/uint256"
 )
@@ -52,6 +53,9 @@ type txJSON struct {
 	Blobs       []kzg4844.Blob       `json:"blobs,omitempty"`
 	Commitments []kzg4844.Commitment `json:"commitments,omitempty"`
 	Proofs      []kzg4844.Proof      `json:"proofs,omitempty"`
+
+	Module *goattypes.Module `json:"module,omitempty"`
+	Action *goattypes.Action `json:"action,omitempty"`
 
 	// Only used for encoding:
 	Hash common.Hash `json:"hash"`
@@ -153,6 +157,14 @@ func (tx *Transaction) MarshalJSON() ([]byte, error) {
 			enc.Commitments = itx.Sidecar.Commitments
 			enc.Proofs = itx.Sidecar.Proofs
 		}
+
+	case *GoatTx:
+		enc.Module = &itx.Module
+		enc.Action = &itx.Action
+		enc.Nonce = (*hexutil.Uint64)(&itx.Nonce)
+		enc.Input = (*hexutil.Bytes)(&itx.Data)
+		enc.To = tx.To()
+		// other fields will show up as null.
 	}
 	return json.Marshal(&enc)
 }
@@ -409,6 +421,34 @@ func (tx *Transaction) UnmarshalJSON(input []byte) error {
 			}
 		}
 
+	case GoatTxType:
+		var itx GoatTx
+		inner = &itx
+
+		if dec.Module == nil {
+			return errors.New("missing required field 'module' in transaction")
+		}
+		itx.Module = *dec.Module
+
+		if dec.Action == nil {
+			return errors.New("missing required field 'action' in transaction")
+		}
+		itx.Action = *dec.Action
+
+		if dec.Nonce == nil {
+			return errors.New("missing required field 'nonce' in transaction")
+		}
+		itx.Nonce = uint64(*dec.Nonce)
+
+		if dec.Input == nil {
+			return errors.New("missing required field 'input' in transaction")
+		}
+		itx.Data = *dec.Input
+
+		itx.inner, err = goattypes.DecodeTx(itx.Module, itx.Action, itx.Data)
+		if err != nil {
+			return err
+		}
 	default:
 		return ErrTxTypeNotSupported
 	}
