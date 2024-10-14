@@ -312,6 +312,9 @@ func prepare(ctx *cli.Context) {
      to 0, and discovery is disabled.
 `)
 
+	case ctx.IsSet(utils.GoatNetworkFlag.Name):
+		log.Info("Starting geth on GOAT network...", "network", ctx.String(utils.GoatNetworkFlag.Name))
+
 	case !ctx.IsSet(utils.NetworkIdFlag.Name):
 		log.Info("Starting Geth on Ethereum mainnet...")
 	}
