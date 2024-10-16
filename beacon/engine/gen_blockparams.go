@@ -29,12 +29,7 @@ func (p PayloadAttributes) MarshalJSON() ([]byte, error) {
 	enc.SuggestedFeeRecipient = p.SuggestedFeeRecipient
 	enc.Withdrawals = p.Withdrawals
 	enc.BeaconRoot = p.BeaconRoot
-	if p.GoatTxs != nil {
-		enc.GoatTxs = make([]hexutil.Bytes, len(p.GoatTxs))
-		for k, v := range p.GoatTxs {
-			enc.GoatTxs[k] = v
-		}
-	}
+	enc.GoatTxs = p.GoatTxs
 	return json.Marshal(&enc)
 }
 
@@ -71,10 +66,7 @@ func (p *PayloadAttributes) UnmarshalJSON(input []byte) error {
 		p.BeaconRoot = dec.BeaconRoot
 	}
 	if dec.GoatTxs != nil {
-		p.GoatTxs = make([][]byte, len(dec.GoatTxs))
-		for k, v := range dec.GoatTxs {
-			p.GoatTxs[k] = v
-		}
+		p.GoatTxs = dec.GoatTxs
 	}
 	return nil
 }
