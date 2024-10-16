@@ -635,7 +635,7 @@ func (api *ConsensusAPI) NewPayloadV4(params engine.ExecutableData, versionedHas
 	}
 
 	chainConfig := api.eth.BlockChain().Config()
-	if chainConfig.Goat != nil || chainConfig.LatestFork(params.Timestamp) != forks.Prague {
+	if chainConfig.Goat == nil && chainConfig.LatestFork(params.Timestamp) != forks.Prague {
 		return engine.PayloadStatusV1{Status: engine.INVALID}, engine.UnsupportedFork.With(errors.New("newPayloadV4 must only be called for prague payloads"))
 	}
 	return api.newPayload(params, versionedHashes, beaconRoot, requests, false)
