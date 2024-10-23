@@ -312,6 +312,9 @@ func prepare(ctx *cli.Context) {
      to 0, and discovery is disabled.
 `)
 
+	case ctx.IsSet(utils.GoatNetworkFlag.Name):
+		log.Info("Starting geth on GOAT network...", "network", ctx.String(utils.GoatNetworkFlag.Name))
+
 	case !ctx.IsSet(utils.NetworkIdFlag.Name):
 		log.Info("Starting Geth on Ethereum mainnet...")
 	}
@@ -320,7 +323,8 @@ func prepare(ctx *cli.Context) {
 		// Make sure we're not on any supported preconfigured testnet either
 		if !ctx.IsSet(utils.HoleskyFlag.Name) &&
 			!ctx.IsSet(utils.SepoliaFlag.Name) &&
-			!ctx.IsSet(utils.DeveloperFlag.Name) {
+			!ctx.IsSet(utils.DeveloperFlag.Name) &&
+			ctx.String(utils.GoatNetworkFlag.Name) == "mainnet" {
 			// Nope, we're really on mainnet. Bump that cache up!
 			log.Info("Bumping default cache on mainnet", "provided", ctx.Int(utils.CacheFlag.Name), "updated", 4096)
 			ctx.Set(utils.CacheFlag.Name, strconv.Itoa(4096))
