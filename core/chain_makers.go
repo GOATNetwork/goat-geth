@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-verkle"
 	"github.com/holiman/uint256"
@@ -125,6 +126,12 @@ func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transacti
 	b.receipts = append(b.receipts, receipt)
 	if b.header.BlobGasUsed != nil {
 		*b.header.BlobGasUsed += receipt.BlobGasUsed
+	}
+
+	if tx.IsGoatTx() {
+		b.header.Extra[0]++
+		hash := types.DeriveSha(types.Transactions(b.txs[:]), trie.NewStackTrie(nil))
+		copy(b.header.Extra[1:], hash[:])
 	}
 }
 
@@ -347,8 +354,44 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		}
 
 		var requests [][]byte
-		if config.IsPrague(b.header.Number, b.header.Time) {
-			// EIP-6110 deposits
+		if config.Goat != nil {
+			var allLogs []*types.Log
+			for _, r := range b.receipts {
+				allLogs = append(allLogs, r.Logs...)
+			}
+			// calculate the reward
+			burntFees := new(big.Int)
+			if b.header.BaseFee != nil && b.header.GasUsed > 0 {
+				gasUsed := new(big.Int).SetUint64(b.header.GasUsed)
+				burntFees.Mul(b.header.BaseFee, gasUsed)
+			}
+
+			if b.header.ExcessBlobGas != nil && b.header.BlobGasUsed != nil && *b.header.BlobGasUsed > 0 {
+				blobBaseFee := eip4844.CalcBlobFee(*b.header.ExcessBlobGas)
+				blobUsed := new(big.Int).SetUint64(*b.header.BlobGasUsed)
+				burntFees.Add(burntFees, blobUsed.Mul(blobUsed, blobBaseFee))
+			}
+
+			var gasFees = new(big.Int)
+			gasFees.Add(gasFees, burntFees)
+			for i, tx := range b.txs {
+				gasUsed := b.receipts[i].GasUsed
+				if gasUsed == 0 { // It's the goat tx
+					continue
+				}
+				minerFee, _ := tx.EffectiveGasTip(b.header.BaseFee)
+				gasFees.Add(gasFees, new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), minerFee))
+			}
+			gasRevenue := ProcessGoatGasFee(statedb, gasFees)
+			goatRequests, err := ProcessGoatRequests(b.Number().Uint64(), gasRevenue, allLogs)
+			if err != nil {
+				panic(fmt.Sprintf("failed to parse goat logs: %v", err))
+			}
+			reqHash := types.CalcRequestsHash(goatRequests)
+			b.header.RequestsHash = &reqHash
+		}
+
+		if config.Goat == nil && config.IsPrague(b.header.Number, b.header.Time) {
 			var blockLogs []*types.Log
 			for _, r := range b.receipts {
 				blockLogs = append(blockLogs, r.Logs...)
@@ -582,6 +625,11 @@ func (cm *chainMaker) makeHeader(parent *types.Block, state *state.StateDB, engi
 		header.ExcessBlobGas = &excessBlobGas
 		header.BlobGasUsed = new(uint64)
 		header.ParentBeaconRoot = new(common.Hash)
+	}
+
+	if cm.config.Goat != nil {
+		header.Extra = make([]byte, 1, params.GoatHeaderExtraLengthV0)
+		header.Extra = append(header.Extra, types.EmptyTxsHash[:]...)
 	}
 	return header
 }

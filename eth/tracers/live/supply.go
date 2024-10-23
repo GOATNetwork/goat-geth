@@ -202,6 +202,10 @@ func (s *supplyTracer) onBalanceChange(a common.Address, prevBalance, newBalance
 		// BalanceDecreaseSelfdestructBurn is non-reversible as it happens
 		// at the end of the transaction.
 		s.delta.Burn.Misc.Sub(s.delta.Burn.Misc, diff)
+
+	case tracing.BalanceGoatDepoist:
+		// deposit from L1
+		s.delta.Issuance.Withdrawals.Add(s.delta.Issuance.Withdrawals, diff)
 	default:
 		return
 	}

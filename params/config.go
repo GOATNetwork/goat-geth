@@ -282,6 +282,8 @@ var NetworkNames = map[string]string{
 	MainnetChainConfig.ChainID.String(): "mainnet",
 	SepoliaChainConfig.ChainID.String(): "sepolia",
 	HoleskyChainConfig.ChainID.String(): "holesky",
+
+	GoatTestnetChainConfig.ChainID.String(): "goat-testnet-1",
 }
 
 // ChainConfig is the core config which determines the blockchain settings.
@@ -329,6 +331,8 @@ type ChainConfig struct {
 	// Various consensus engines
 	Ethash *EthashConfig `json:"ethash,omitempty"`
 	Clique *CliqueConfig `json:"clique,omitempty"`
+
+	Goat *GoatConfig `json:"goat,omitempty"`
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
@@ -361,6 +365,8 @@ func (c *ChainConfig) Description() string {
 	}
 	banner += fmt.Sprintf("Chain ID:  %v (%s)\n", c.ChainID, network)
 	switch {
+	case c.Goat != nil:
+		banner += "Consensus: Goat\n"
 	case c.Ethash != nil:
 		banner += "Consensus: Beacon (proof-of-stake), merged from Ethash (proof-of-work)\n"
 	case c.Clique != nil:

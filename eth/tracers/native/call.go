@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types/goattypes"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/params"
@@ -177,6 +178,33 @@ func (t *callTracer) OnEnter(depth int, typ byte, from common.Address, to common
 	if depth == 0 {
 		call.Gas = t.gasLimit
 	}
+
+	if from == goattypes.LockingExecutor && to == goattypes.LockingContract && len(input) > 4 {
+		CompleteUnlockTx := new(goattypes.CompleteUnlockTx)
+		DistributeRewardTx := new(goattypes.DistributeRewardTx)
+
+		switch [4]byte(input[:4]) {
+		case CompleteUnlockTx.MethodId():
+			if err := CompleteUnlockTx.Decode(input); err == nil {
+				call.Calls = append(call.Calls, callFrame{
+					Type:  vm.CALL,
+					From:  goattypes.LockingContract,
+					To:    &CompleteUnlockTx.Recipient,
+					Value: CompleteUnlockTx.Amount,
+				})
+			}
+		case DistributeRewardTx.MethodId():
+			if err := DistributeRewardTx.Decode(input); err == nil {
+				call.Calls = append(call.Calls, callFrame{
+					Type:  vm.CALL,
+					From:  goattypes.LockingContract,
+					To:    &DistributeRewardTx.Recipient,
+					Value: DistributeRewardTx.GasReward,
+				})
+			}
+		}
+	}
+
 	t.callstack = append(t.callstack, call)
 }
 
@@ -234,6 +262,26 @@ func (t *callTracer) OnTxEnd(receipt *types.Receipt, err error) {
 }
 
 func (t *callTracer) OnLog(log *types.Log) {
+	if log.Address == goattypes.BridgeContract && len(log.Topics) == 3 && log.Topics[0] == goattypes.DepositEventTopic {
+		event, err := goattypes.UnpackToDepositEvent(log.Topics, log.Data)
+		if err == nil {
+			t.callstack[0].Calls = append(t.callstack[0].Calls, callFrame{
+				Type:  vm.CALL,
+				From:  goattypes.BridgeContract,
+				To:    &event.Target,
+				Value: event.Amount,
+			})
+			if event.Tax.Sign() != 0 {
+				t.callstack[0].Calls = append(t.callstack[0].Calls, callFrame{
+					Type:  vm.CALL,
+					From:  goattypes.BridgeContract,
+					To:    &goattypes.GoatFoundationContract,
+					Value: event.Tax,
+				})
+			}
+		}
+	}
+
 	// Only logs need to be captured via opcode processing
 	if !t.config.WithLog {
 		return
