@@ -62,8 +62,10 @@ func (st *StateTransition) goat(msg *Message, ret []byte, vmerr error) (*Executi
 
 		// add the value to the target
 		log.Debug("NewClaim/Unlock", "address", v.Address, "amount", amount)
-		st.state.SubBalance(goattypes.LockingContract, amount, tracing.BalanceChangeTransfer)
-		st.state.AddBalance(v.Address, amount, tracing.BalanceChangeTransfer)
+		if !CanTransfer(st.state, goattypes.LockingContract, amount) {
+			return nil, fmt.Errorf("goat tx error (amount too large to distribute: %s)", v.Amount)
+		}
+		Transfer(st.state, goattypes.LockingContract, v.Address, amount)
 	}
 
 	gasUsed := st.gasUsed()
