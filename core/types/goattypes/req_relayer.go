@@ -26,6 +26,10 @@ func (reqs *RelayerRequests) Encode() [][]byte {
 	return [][]byte{adds, removes}
 }
 
+func (reqs *RelayerRequests) RequestsCount() int {
+	return 2
+}
+
 type AddVoterRequest struct {
 	Voter  common.Address
 	Pubkey common.Hash

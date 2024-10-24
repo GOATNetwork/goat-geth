@@ -64,6 +64,10 @@ func (reqs *LockingRequests) Encode() [][]byte {
 	return [][]byte{gas, creates, locks, unlocks, claims, grants, weights, thresholds}
 }
 
+func (reqs *LockingRequests) RequestsCount() int {
+	return 8
+}
+
 type GasRequest struct {
 	Height uint64
 	Amount *big.Int

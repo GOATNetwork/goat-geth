@@ -32,6 +32,10 @@ func (reqs *BridgeRequests) Encode() [][]byte {
 	return [][]byte{withdrawals, replaces, cancel1s}
 }
 
+func (reqs *BridgeRequests) RequestsCount() int {
+	return 3
+}
+
 type WithdrawalRequest struct {
 	Id      uint64
 	Amount  uint64

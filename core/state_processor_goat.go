@@ -144,7 +144,7 @@ func ProcessGoatRequests(height uint64, reward *big.Int, allLogs []*types.Log) (
 		}
 	}
 
-	requests := make([][]byte, 0, 12)
+	requests := make([][]byte, 0, lockingRequests.RequestsCount()+bridgeRequests.RequestsCount()+relayerRequests.RequestsCount())
 	requests = append(requests, lockingRequests.Encode()...)
 	requests = append(requests, bridgeRequests.Encode()...)
 	requests = append(requests, relayerRequests.Encode()...)
