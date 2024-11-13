@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-verkle"
 	"github.com/holiman/uint256"
@@ -125,6 +126,12 @@ func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transacti
 	b.receipts = append(b.receipts, receipt)
 	if b.header.BlobGasUsed != nil {
 		*b.header.BlobGasUsed += receipt.BlobGasUsed
+	}
+
+	if tx.IsGoatTx() {
+		b.header.Extra[0]++
+		hash := types.DeriveSha(types.Transactions(b.txs[:]), trie.NewStackTrie(nil))
+		copy(b.header.Extra[1:], hash[:])
 	}
 }
 
@@ -347,7 +354,19 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		}
 
 		var requests [][]byte
-		if config.IsPrague(b.header.Number, b.header.Time) {
+		if config.Goat != nil {
+			var blockLogs []*types.Log
+			for _, r := range b.receipts {
+				blockLogs = append(blockLogs, r.Logs...)
+			}
+			gasRevenue := AllocateGoatGasFee(statedb, CalculateGoatGasFees(b.header, b.txs, b.receipts))
+			goatRequests, err := ProcessGoatRequests(b.Number().Uint64(), gasRevenue, blockLogs)
+			if err != nil {
+				panic(fmt.Sprintf("failed to parse goat logs: %v", err))
+			}
+			requests = goatRequests
+		}
+		if config.Goat == nil && config.IsPrague(b.header.Number, b.header.Time) {
 			requests = [][]byte{}
 			// EIP-6110 deposits
 			var blockLogs []*types.Log
@@ -579,6 +598,11 @@ func (cm *chainMaker) makeHeader(parent *types.Block, state *state.StateDB, engi
 		header.ExcessBlobGas = &excessBlobGas
 		header.BlobGasUsed = new(uint64)
 		header.ParentBeaconRoot = new(common.Hash)
+	}
+
+	if cm.config.Goat != nil {
+		header.Extra = make([]byte, 1, params.GoatHeaderExtraLengthV0)
+		header.Extra = append(header.Extra, types.EmptyTxsHash[:]...)
 	}
 	return header
 }

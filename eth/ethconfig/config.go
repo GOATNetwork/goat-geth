@@ -48,10 +48,10 @@ var FullNodeGPO = gasprice.Config{
 
 // Defaults contains default settings for use on the Ethereum main net.
 var Defaults = Config{
-	SyncMode:           downloader.SnapSync,
+	SyncMode:           downloader.FullSync,
 	NetworkId:          0, // enable auto configuration of networkID == chainID
-	TxLookupLimit:      2350000,
-	TransactionHistory: 2350000,
+	TxLookupLimit:      0,
+	TransactionHistory: 0,
 	StateHistory:       params.FullImmutabilityThreshold,
 	DatabaseCache:      512,
 	TrieCleanCache:     154,
@@ -65,7 +65,7 @@ var Defaults = Config{
 	RPCGasCap:          50000000,
 	RPCEVMTimeout:      5 * time.Second,
 	GPO:                FullNodeGPO,
-	RPCTxFeeCap:        1, // 1 ether
+	RPCTxFeeCap:        0.036,
 }
 
 //go:generate go run github.com/fjl/gencodec -type Config -formats toml -out gen_config.go
