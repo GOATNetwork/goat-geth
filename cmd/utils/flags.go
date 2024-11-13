@@ -335,6 +335,7 @@ var (
 		Name:     "txpool.nolocals",
 		Usage:    "Disables price exemptions for locally submitted transactions",
 		Category: flags.TxPoolCategory,
+		Value:    true,
 	}
 	TxPoolJournalFlag = &cli.StringFlag{
 		Name:     "txpool.journal",
@@ -775,7 +776,7 @@ var (
 		Aliases:  []string{"discv4"},
 		Usage:    "Enables the V4 discovery mechanism",
 		Category: flags.NetworkingCategory,
-		Value:    true,
+		Value:    false,
 	}
 	DiscoveryV5Flag = &cli.BoolFlag{
 		Name:     "discovery.v5",
@@ -938,7 +939,7 @@ var (
 		HoleskyFlag,
 	}
 	// NetworkFlags is the flag group of all built-in supported networks.
-	NetworkFlags = append([]cli.Flag{MainnetFlag}, TestnetFlags...)
+	NetworkFlags = append([]cli.Flag{MainnetFlag, GoatNetworkFlag}, TestnetFlags...)
 
 	// DatabaseFlags is the flag group of all database flags.
 	DatabaseFlags = []cli.Flag{
@@ -1051,6 +1052,12 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 		urls = SplitAndTrim(ctx.String(BootnodesFlag.Name))
 	case cfg.BootstrapNodesV5 != nil:
 		return // already set, don't apply defaults.
+	case ctx.IsSet(GoatNetworkFlag.Name):
+		goatNetwork := ctx.String(GoatNetworkFlag.Name)
+		switch goatNetwork {
+		case "testnet3":
+			urls = params.V5GoatTestnet3Bootnodes
+		}
 	}
 
 	cfg.BootstrapNodesV5 = make([]*enode.Node, 0, len(urls))
@@ -1085,6 +1092,8 @@ func setNAT(ctx *cli.Context, cfg *p2p.Config) {
 			Fatalf("Option %s: %v", NATFlag.Name, err)
 		}
 		cfg.NAT = natif
+	} else {
+		useGoatBootnodePreset(ctx, cfg)
 	}
 }
 
@@ -1153,6 +1162,23 @@ func setHTTP(ctx *cli.Context, cfg *node.Config) {
 
 	if ctx.IsSet(BatchResponseMaxSize.Name) {
 		cfg.BatchResponseMaxSize = ctx.Int(BatchResponseMaxSize.Name)
+	}
+
+	if isGoatPreset(ctx, "rpc") {
+		defaultModules := []string{"web3", "eth", "net"}
+		if ctx.String(GCModeFlag.Name) == "archive" {
+			defaultModules = append(defaultModules, "debug", "txpool")
+		}
+		publicIF, allOrigin := "0.0.0.0", []string{"*"}
+
+		cfg.HTTPHost = publicIF
+		cfg.HTTPModules = defaultModules
+		cfg.HTTPVirtualHosts = allOrigin
+		cfg.HTTPCors = allOrigin
+
+		cfg.WSHost = publicIF
+		cfg.WSModules = defaultModules
+		cfg.WSOrigins = allOrigin
 	}
 }
 
@@ -1573,7 +1599,7 @@ func CheckExclusive(ctx *cli.Context, args ...interface{}) {
 // SetEthConfig applies eth-related command line flags to the config.
 func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	// Avoid conflicting network flags
-	CheckExclusive(ctx, MainnetFlag, DeveloperFlag, SepoliaFlag, HoleskyFlag)
+	CheckExclusive(ctx, MainnetFlag, DeveloperFlag, SepoliaFlag, HoleskyFlag, GoatNetworkFlag)
 	CheckExclusive(ctx, DeveloperFlag, ExternalSignerFlag) // Can't use both ephemeral unlocked and external signer
 
 	// Set configurations from CLI flags
@@ -1656,9 +1682,16 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		log.Warn("The flag --txlookuplimit is deprecated and will be removed, please use --history.transactions")
 		cfg.TransactionHistory = ctx.Uint64(TxLookupLimitFlag.Name)
 	}
-	if ctx.String(GCModeFlag.Name) == "archive" && cfg.TransactionHistory != 0 {
-		cfg.TransactionHistory = 0
-		log.Warn("Disabled transaction unindexing for archive node")
+	if cfg.NoPruning {
+		if cfg.TransactionHistory != 0 {
+			cfg.TransactionHistory = 0
+			log.Warn("Disabled transaction unindexing for archive node")
+		}
+
+		if cfg.StateHistory != 0 {
+			cfg.StateHistory = 0
+			log.Warn("Disabled state pruning for archive node")
+		}
 
 		cfg.StateScheme = rawdb.HashScheme
 		log.Warn("Forcing hash state-scheme for archive mode")
@@ -1739,6 +1772,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		}
 		cfg.Genesis = core.DefaultSepoliaGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.SepoliaGenesisHash)
+	case ctx.IsSet(GoatNetworkFlag.Name):
+		genesis := MakeGenesis(ctx)
+		if !ctx.IsSet(NetworkIdFlag.Name) {
+			cfg.NetworkId = genesis.Config.ChainID.Uint64()
+		}
+		cfg.Genesis = genesis
 	case ctx.Bool(DeveloperFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
@@ -2121,6 +2160,14 @@ func DialRPCWithHeaders(endpoint string, headers []string) (*rpc.Client, error) 
 func MakeGenesis(ctx *cli.Context) *core.Genesis {
 	var genesis *core.Genesis
 	switch {
+	case ctx.IsSet(GoatNetworkFlag.Name):
+		netwk := ctx.String(GoatNetworkFlag.Name)
+		switch netwk {
+		case "testnet3":
+			genesis = core.DefaultGoatTestnet3GenesisBlock()
+		default:
+			Fatalf("unknown goat network: %s", netwk)
+		}
 	case ctx.Bool(MainnetFlag.Name):
 		genesis = core.DefaultGenesisBlock()
 	case ctx.Bool(HoleskyFlag.Name):

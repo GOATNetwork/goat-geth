@@ -155,6 +155,7 @@ var (
 		utils.BeaconGenesisRootFlag,
 		utils.BeaconGenesisTimeFlag,
 		utils.BeaconCheckpointFlag,
+		utils.GoatPresetFlag,
 	}, utils.NetworkFlags, utils.DatabaseFlags)
 
 	rpcFlags = []cli.Flag{
@@ -311,6 +312,12 @@ func prepare(ctx *cli.Context) {
      to 0, and discovery is disabled.
 `)
 
+	case ctx.IsSet(utils.GoatNetworkFlag.Name):
+		log.Info("Starting Geth on GOAT network...", "network", ctx.String(utils.GoatNetworkFlag.Name))
+		if ctx.String(utils.GoatNetworkFlag.Name) == "mainnet" {
+			log.Info("Bumping default cache on mainnet to 4096")
+			ctx.Set(utils.CacheFlag.Name, strconv.Itoa(4096))
+		}
 	case !ctx.IsSet(utils.NetworkIdFlag.Name):
 		log.Info("Starting Geth on Ethereum mainnet...")
 	}
@@ -319,7 +326,8 @@ func prepare(ctx *cli.Context) {
 		// Make sure we're not on any supported preconfigured testnet either
 		if !ctx.IsSet(utils.HoleskyFlag.Name) &&
 			!ctx.IsSet(utils.SepoliaFlag.Name) &&
-			!ctx.IsSet(utils.DeveloperFlag.Name) {
+			!ctx.IsSet(utils.DeveloperFlag.Name) &&
+			!ctx.IsSet(utils.GoatNetworkFlag.Name) {
 			// Nope, we're really on mainnet. Bump that cache up!
 			log.Info("Bumping default cache on mainnet", "provided", ctx.Int(utils.CacheFlag.Name), "updated", 4096)
 			ctx.Set(utils.CacheFlag.Name, strconv.Itoa(4096))
