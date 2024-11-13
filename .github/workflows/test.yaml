@@ -1,0 +1,25 @@
+name: test
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches:
+      - "*"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          check-latest: true
+      - run: go run build/ci.go lint
+      - run: go run build/ci.go check_tidy
+      - run: go run build/ci.go check_generate
+      - run: go run build/ci.go check_baddeps
+      - run: go run build/ci.go test
