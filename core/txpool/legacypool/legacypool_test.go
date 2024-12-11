@@ -54,6 +54,8 @@ var (
 func init() {
 	testTxPoolConfig = DefaultConfig
 	testTxPoolConfig.Journal = ""
+	testTxPoolConfig.PriceLimit = 1
+	testTxPoolConfig.NoLocals = false
 
 	cpy := *params.TestChainConfig
 	eip1559Config = &cpy
