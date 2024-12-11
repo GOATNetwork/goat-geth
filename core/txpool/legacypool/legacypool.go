@@ -144,7 +144,8 @@ var DefaultConfig = Config{
 	Journal:   "transactions.rlp",
 	Rejournal: time.Hour,
 
-	PriceLimit: 1,
+	NoLocals:   true,
+	PriceLimit: 1e5,
 	PriceBump:  10,
 
 	AccountSlots: 16,
@@ -152,7 +153,7 @@ var DefaultConfig = Config{
 	AccountQueue: 64,
 	GlobalQueue:  1024,
 
-	Lifetime: 3 * time.Hour,
+	Lifetime: 5 * time.Minute,
 }
 
 // sanitize checks the provided user configurations and changes anything that's
