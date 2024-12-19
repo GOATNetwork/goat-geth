@@ -289,8 +289,11 @@ func TestProcessGoatGasFee(t *testing.T) {
 		funds  = new(big.Int).Mul(big.NewInt(1e6), big.NewInt(params.Ether))
 		config = *params.AllGoatDebugChainConfig
 		gspec  = &Genesis{
-			Config: &config,
-			Alloc:  types.GenesisAlloc{addr: {Balance: funds}},
+			Config:   &config,
+			Alloc:    types.GenesisAlloc{addr: {Balance: funds}},
+			GasLimit: 3000_0000,
+			GasUsed:  0,
+			BaseFee:  big.NewInt(1e9),
 		}
 	)
 
@@ -306,10 +309,26 @@ func TestProcessGoatGasFee(t *testing.T) {
 				Nonce:    nonce,
 				To:       &to,
 				Gas:      21000,
-				GasPrice: new(big.Int).SetUint64(1e9),
+				GasPrice: big.NewInt(2e9),
 				Value:    big.NewInt(0),
-				Data:     []byte{},
 			}
+			tx := types.NewTx(txdata)
+			tx, _ = types.SignTx(tx, signer, key)
+			b.AddTx(tx)
+			nonce++
+		}
+
+		for i := 0; i < 5; i++ {
+			txdata := &types.DynamicFeeTx{
+				ChainID:   config.ChainID,
+				Nonce:     nonce,
+				GasTipCap: big.NewInt(1e9),
+				GasFeeCap: big.NewInt(5e9),
+				Gas:       21000,
+				To:        &to,
+				Value:     big.NewInt(0),
+			}
+
 			tx := types.NewTx(txdata)
 			tx, _ = types.SignTx(tx, signer, key)
 			b.AddTx(tx)
@@ -328,24 +347,35 @@ func TestProcessGoatGasFee(t *testing.T) {
 
 	state, _ := chain.State()
 
-	// totalFee = 1e9 * 21000 * 10
-	// tax = totalFee * 20 % = 4200000000000
-	// gas reward = totalFee - tax = 205800000000000
+	// base fee = 1e9 * 7 / 8 = 875000000 (see consensus/misc/eip1559/eip1559.go)
+	// totalFee = (tipFee(2e9 - baseFee) + baseFee) * 21000 * LegacyTxCount + (tipFee(1e9) + baseFee) * 21000 * DynamicFeeTxCount = 616875000000000
+	// tax = totalFee * 2 % = 12337500000000
+	// gas reward = totalFee - tax = 604537500000000
 
 	if !state.GetBalance(coinbase).IsZero() {
 		t.Errorf("balance of coinbase should be 0")
 	}
 
 	gfBalance := state.GetBalance(goattypes.GoatFoundationContract)
-	if expected := big.NewInt(4200000000000); gfBalance.CmpBig(expected) != 0 {
+	if expected := big.NewInt(12337500000000); gfBalance.CmpBig(expected) != 0 {
 		t.Errorf("balance of goat foundation: expected %s got %s", expected, gfBalance)
 	}
 	rwBalace := state.GetBalance(goattypes.LockingContract)
-	if expected := big.NewInt(205800000000000); rwBalace.CmpBig(expected) != 0 {
+	if expected := big.NewInt(604537500000000); rwBalace.CmpBig(expected) != 0 {
 		t.Errorf("balance of locking contract: expected %s got %s", expected, rwBalace)
 	}
 
 	block := chain.GetBlockByNumber(1)
+
+	const expectGasUsed = 15 * 21000
+	if gas := block.GasUsed(); gas != expectGasUsed {
+		t.Errorf("block gas used: expected %v got %v", expectGasUsed, gas)
+	}
+
+	const expectBaseFee = 875000000
+	if basefee := block.BaseFee(); basefee.Cmp(big.NewInt(expectBaseFee)) != 0 {
+		t.Errorf("block base fee: expected %v got %v", expectBaseFee, basefee)
+	}
 
 	locking := goattypes.LockingRequests{Gas: []*goattypes.GasRequest{goattypes.NewGasRequest(block.NumberU64(), rwBalace.ToBig())}}
 	requests := locking.Encode()
