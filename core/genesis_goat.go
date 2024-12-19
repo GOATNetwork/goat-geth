@@ -1,7 +1,6 @@
 package core
 
 import (
-	"embed"
 	"encoding/json"
 	"math/big"
 
@@ -12,19 +11,15 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-//go:embed goat
-var goatGenesis embed.FS
-
 var goatEmptyExtra = common.Hex2Bytes("0056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+
+//go:embed goat/testnet3.json
+var goatTestnet3Alloc []byte
 
 // DefaultGoatTestnet3GenesisBlock returns the Goat Testnet3 genesis block.
 func DefaultGoatTestnet3GenesisBlock() *Genesis {
-	raw, err := goatGenesis.ReadFile("goat/testnet3.json")
-	if err != nil {
-		panic(err)
-	}
 	var alloc types.GenesisAlloc
-	if err := json.Unmarshal(raw, &alloc); err != nil {
+	if err := json.Unmarshal(goatTestnet3Alloc, &alloc); err != nil {
 		panic(err)
 	}
 	return &Genesis{
@@ -39,20 +34,19 @@ func DefaultGoatTestnet3GenesisBlock() *Genesis {
 	}
 }
 
+//go:embed goat/mainnet.json
+var goatMainnetAlloc []byte
+
 // DefaultGoatMainnetGenesisBlock returns the Goat Mainnet genesis block.
 func DefaultGoatMainnetGenesisBlock() *Genesis {
-	raw, err := goatGenesis.ReadFile("goat/mainnet.json")
-	if err != nil {
-		panic(err)
-	}
 	var alloc types.GenesisAlloc
-	if err := json.Unmarshal(raw, &alloc); err != nil {
+	if err := json.Unmarshal(goatMainnetAlloc, &alloc); err != nil {
 		panic(err)
 	}
 	return &Genesis{
 		Config:     params.GoatMainnetChainConfig,
 		Nonce:      0,
-		Timestamp:  0x674d6b3a,
+		Timestamp:  0x676419e8,
 		ExtraData:  goatEmptyExtra,
 		GasLimit:   params.GoatTxGasLimit,
 		Difficulty: common.Big0,

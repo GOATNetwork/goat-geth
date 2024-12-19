@@ -17,8 +17,8 @@
 package version
 
 const (
-	Major = 1        // Major version component of the current release
-	Minor = 14       // Minor version component of the current release
-	Patch = 12       // Patch version component of the current release
-	Meta  = "stable" // Version metadata to append to the version string
+	Major = 0                // Major version component of the current release
+	Minor = 1                // Minor version component of the current release
+	Patch = 4                // Patch version component of the current release
+	Meta  = "stable-1.14.12" // Version metadata to append to the version string
 )
