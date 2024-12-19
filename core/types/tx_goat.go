@@ -37,6 +37,22 @@ func (tx *Transaction) Withdraw() *goattypes.Mint {
 	return tx.inner.(*GoatTx).inner.Withdraw()
 }
 
+func (tx *Transaction) GoatModule() *goattypes.Module {
+	if !tx.IsGoatTx() {
+		return nil
+	}
+	module := tx.inner.(*GoatTx).Module
+	return &module
+}
+
+func (tx *Transaction) GoatAction() *goattypes.Action {
+	if !tx.IsGoatTx() {
+		return nil
+	}
+	action := tx.inner.(*GoatTx).Action
+	return &action
+}
+
 const (
 	GoatTxType = 0x60
 )
