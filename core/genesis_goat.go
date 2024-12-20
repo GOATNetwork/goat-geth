@@ -46,7 +46,7 @@ func DefaultGoatMainnetGenesisBlock() *Genesis {
 	return &Genesis{
 		Config:     params.GoatMainnetChainConfig,
 		Nonce:      0,
-		Timestamp:  0x676419e8,
+		Timestamp:  0x67657e2f,
 		ExtraData:  goatEmptyExtra,
 		GasLimit:   params.GoatTxGasLimit,
 		Difficulty: common.Big0,
