@@ -1055,8 +1055,6 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 	case ctx.IsSet(GoatNetworkFlag.Name):
 		goatNetwork := ctx.String(GoatNetworkFlag.Name)
 		switch goatNetwork {
-		case params.GoatTestnet3Name:
-			urls = params.V5GoatTestnet3Bootnodes
 		case params.GoatMainnetName:
 			urls = params.V5GoatMainnetBootnodes
 		}
@@ -2165,10 +2163,10 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 	case ctx.IsSet(GoatNetworkFlag.Name):
 		netwk := ctx.String(GoatNetworkFlag.Name)
 		switch netwk {
-		case params.GoatTestnet3Name:
-			genesis = core.DefaultGoatTestnet3GenesisBlock()
 		case params.GoatMainnetName:
 			genesis = core.DefaultGoatMainnetGenesisBlock()
+		case params.GoatTestnet3Name:
+			Fatalf("testnet3 is removed from this version, please use v0.1.3 instead")
 		default:
 			Fatalf("unknown goat network: %s", netwk)
 		}
