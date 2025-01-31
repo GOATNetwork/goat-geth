@@ -284,7 +284,6 @@ var NetworkNames = map[string]string{
 	HoleskyChainConfig.ChainID.String(): "holesky",
 
 	GoatTestnet3ChainConfig.ChainID.String(): "goat-testnet3",
-	GoatMainnetChainConfig.ChainID.String():  "goat-mainnet",
 }
 
 // ChainConfig is the core config which determines the blockchain settings.
