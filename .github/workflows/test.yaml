@@ -1,0 +1,29 @@
+name: test
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches:
+      - "*"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: build/cache
+          key: ${{ runner.os }}-${{ runner.arch }}-build-tools-cache-${{ hashFiles('build/checksums.txt') }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          check-latest: true
+      - run: go run build/ci.go check_generate
+      - run: go run build/ci.go lint
+      - run: go run build/ci.go check_baddeps
+      - run: go run build/ci.go install
+      - run: go test -p 1 -short ./...
