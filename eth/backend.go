@@ -236,7 +236,11 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 	legacyPool := legacypool.New(config.TxPool, eth.blockchain)
 
-	eth.txPool, err = txpool.New(config.TxPool.PriceLimit, eth.blockchain, []txpool.SubPool{legacyPool, blobPool})
+	subpools := []txpool.SubPool{legacyPool}
+	if !chainConfig.IsGoat() {
+		subpools = append(subpools, blobPool)
+	}
+	eth.txPool, err = txpool.New(config.TxPool.PriceLimit, eth.blockchain, subpools)
 	if err != nil {
 		return nil, err
 	}

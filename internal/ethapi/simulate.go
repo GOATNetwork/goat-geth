@@ -256,7 +256,13 @@ func (sim *simulator) processBlock(ctx context.Context, block *simBlock, header,
 	}
 	var requests [][]byte
 	// Process EIP-7685 requests
-	if sim.chainConfig.IsPrague(header.Number, header.Time) {
+	if sim.chainConfig.IsGoat() {
+		goatRequests, err := core.ProcessGoatRequests(header.Number.Uint64(), big.NewInt(0), allLogs)
+		if err != nil {
+			return nil, nil, err
+		}
+		requests = goatRequests
+	} else if sim.chainConfig.IsPrague(header.Number, header.Time) {
 		requests = [][]byte{}
 		// EIP-6110
 		if err := core.ParseDepositLogs(&requests, allLogs, sim.chainConfig); err != nil {

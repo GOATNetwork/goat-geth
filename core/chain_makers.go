@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-verkle"
 	"github.com/holiman/uint256"
@@ -131,6 +132,12 @@ func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transacti
 	b.receipts = append(b.receipts, receipt)
 	if b.header.BlobGasUsed != nil {
 		*b.header.BlobGasUsed += receipt.BlobGasUsed
+	}
+
+	if tx.IsGoatTx() {
+		b.header.Extra[0]++
+		hash := types.DeriveSha(types.Transactions(b.txs[:]), trie.NewStackTrie(nil))
+		copy(b.header.Extra[1:], hash[:])
 	}
 }
 
@@ -312,6 +319,19 @@ func (b *BlockGen) collectRequests(readonly bool) (requests [][]byte) {
 		// When reading the requests mid-block, we don't want this behavior, so fork
 		// off the statedb before executing the system calls.
 		statedb = statedb.Copy()
+	}
+
+	if b.cm.config.IsGoat() {
+		var blockLogs []*types.Log
+		for _, r := range b.receipts {
+			blockLogs = append(blockLogs, r.Logs...)
+		}
+		gasRevenue := AllocateGoatGasFee(statedb, CalculateGoatGasFees(b.header, b.txs, b.receipts))
+		goatRequests, err := ProcessGoatRequests(b.Number().Uint64(), gasRevenue, blockLogs)
+		if err != nil {
+			panic(fmt.Sprintf("failed to parse goat logs: %v", err))
+		}
+		return goatRequests
 	}
 
 	if b.cm.config.IsPrague(b.header.Number, b.header.Time) {
@@ -605,6 +625,11 @@ func (cm *chainMaker) makeHeader(parent *types.Block, state *state.StateDB, engi
 		header.ExcessBlobGas = &excessBlobGas
 		header.BlobGasUsed = new(uint64)
 		header.ParentBeaconRoot = new(common.Hash)
+	}
+
+	if cm.config.IsGoat() {
+		header.Extra = make([]byte, 1, params.GoatHeaderExtraLengthV0)
+		header.Extra = append(header.Extra, types.EmptyTxsHash[:]...)
 	}
 	return header
 }

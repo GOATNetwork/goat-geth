@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types/goattypes"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
@@ -164,6 +165,11 @@ type Message struct {
 
 	// When SkipFromEOACheck is true, the message sender is not checked to be an EOA.
 	SkipFromEOACheck bool
+
+	// goat
+	IsGoatTx bool
+	Deposit  *goattypes.Mint // deposit from the bridge
+	Withdraw *goattypes.Mint // withdraw from consensus layer
 }
 
 // TransactionToMessage converts a transaction into a Message.
@@ -183,6 +189,11 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 		SkipFromEOACheck:      false,
 		BlobHashes:            tx.BlobHashes(),
 		BlobGasFeeCap:         tx.BlobGasFeeCap(),
+
+		// goat
+		IsGoatTx: tx.IsGoatTx(),
+		Deposit:  tx.Deposit(),
+		Withdraw: tx.Withdraw(),
 	}
 	// If baseFee provided, set gasPrice to effectiveGasPrice.
 	if baseFee != nil {
@@ -258,6 +269,16 @@ func (st *stateTransition) to() common.Address {
 }
 
 func (st *stateTransition) buyGas() error {
+	if st.msg.IsGoatTx {
+		st.initialGas = params.GoatTxGasLimit
+		st.gasRemaining = params.GoatTxGasLimit
+
+		if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
+			st.evm.Config.Tracer.OnGasChange(0, st.gasRemaining, tracing.GasChangeTxInitialBalance)
+		}
+		return nil
+	}
+
 	mgval := new(big.Int).SetUint64(st.msg.GasLimit)
 	mgval.Mul(mgval, st.msg.GasPrice)
 	balanceCheck := new(big.Int).Set(mgval)
@@ -304,6 +325,14 @@ func (st *stateTransition) buyGas() error {
 func (st *stateTransition) preCheck() error {
 	// Only check transactions that are not fake
 	msg := st.msg
+
+	if !msg.IsGoatTx {
+		switch msg.From {
+		case goattypes.LockingExecutor, goattypes.RelayerExecutor:
+			return fmt.Errorf("system executors can't send txs")
+		}
+	}
+
 	if !msg.SkipNonceChecks {
 		// Make sure this transaction's nonce is correct.
 		stNonce := st.state.GetNonce(msg.From)
@@ -327,7 +356,7 @@ func (st *stateTransition) preCheck() error {
 		}
 	}
 	// Make sure that transaction gasFeeCap is greater than the baseFee (post london)
-	if st.evm.ChainConfig().IsLondon(st.evm.Context.BlockNumber) {
+	if !msg.IsGoatTx && st.evm.ChainConfig().IsLondon(st.evm.Context.BlockNumber) {
 		// Skip the checks if gas fields are zero and baseFee was explicitly disabled (eth_call)
 		skipCheck := st.evm.Config.NoBaseFee && msg.GasFeeCap.BitLen() == 0 && msg.GasTipCap.BitLen() == 0
 		if !skipCheck {
@@ -437,7 +466,7 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.gasRemaining, gas)
 	}
 	// Gas limit suffices for the floor data cost (EIP-7623)
-	if rules.IsPrague {
+	if rules.IsPrague && !st.msg.IsGoatTx {
 		floorDataGas, err = FloorDataGas(msg.Data)
 		if err != nil {
 			return nil, err
@@ -509,6 +538,10 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 		ret, st.gasRemaining, vmerr = st.evm.Call(msg.From, st.to(), msg.Data, st.gasRemaining, value)
 	}
 
+	if msg.IsGoatTx {
+		return st.goat(msg, ret, vmerr)
+	}
+
 	// Compute refund counter, capped to a refund quotient.
 	gasRefund := st.calcRefund()
 	st.gasRemaining += gasRefund
@@ -537,7 +570,7 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 		// Skip fee payment when NoBaseFee is set and the fee fields
 		// are 0. This avoids a negative effectiveTip being applied to
 		// the coinbase when simulating calls.
-	} else {
+	} else if !st.evm.ChainConfig().IsGoat() {
 		fee := new(uint256.Int).SetUint64(st.gasUsed())
 		fee.Mul(fee, effectiveTipU256)
 		st.state.AddBalance(st.evm.Context.Coinbase, fee, tracing.BalanceIncreaseRewardTransactionFee)
