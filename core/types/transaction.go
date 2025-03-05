@@ -200,6 +200,9 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 	}
 	var inner TxData
 	switch b[0] {
+	case GoatTxType:
+		inner = new(GoatTx)
+
 	case AccessListTxType:
 		inner = new(AccessListTx)
 	case DynamicFeeTxType:

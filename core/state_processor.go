@@ -63,6 +63,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		blockNumber = block.Number()
 		allLogs     []*types.Log
 		gp          = new(GasPool).AddGas(block.GasLimit())
+
+		// gas reward to validators and goat foundation
+		goatGasFees = new(big.Int)
 	)
 
 	// Mutate the block and state according to any hard-fork specs
@@ -103,10 +106,28 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		}
 		receipts = append(receipts, receipt)
 		allLogs = append(allLogs, receipt.Logs...)
+
+		if receipt.GasUsed > 0 { // non-goatTx case
+			tipFee := new(big.Int).SetUint64(receipt.GasUsed)
+			tipFee.Mul(tipFee, tx.EffectiveGasTipValue(context.BaseFee))
+			goatGasFees.Add(goatGasFees, tipFee)
+		}
 	}
 	// Read requests if Prague is enabled.
 	var requests [][]byte
-	if p.config.IsPrague(block.Number(), block.Time()) {
+	if p.config.IsGoat() {
+		burntFees := new(big.Int)
+		if context.BaseFee != nil && header.GasUsed > 0 {
+			burntFees.Mul(context.BaseFee, new(big.Int).SetUint64(header.GasUsed))
+		}
+		goatGasFees.Add(goatGasFees, burntFees)
+		reward := AllocateGoatGasFee(statedb, goatGasFees)
+		goatRequests, err := ProcessGoatRequests(block.NumberU64(), reward, allLogs)
+		if err != nil {
+			return nil, err
+		}
+		requests = goatRequests
+	} else if p.config.IsPrague(block.Number(), block.Time()) {
 		requests = [][]byte{}
 		// EIP-6110
 		if err := ParseDepositLogs(&requests, allLogs, p.config); err != nil {
@@ -212,6 +233,10 @@ func ApplyTransaction(evm *vm.EVM, gp *GasPool, statedb *state.StateDB, header *
 // ProcessBeaconBlockRoot applies the EIP-4788 system call to the beacon block root
 // contract. This method is exported to be used in tests.
 func ProcessBeaconBlockRoot(beaconRoot common.Hash, evm *vm.EVM) {
+	if evm.ChainConfig().IsGoat() {
+		return
+	}
+
 	if tracer := evm.Config.Tracer; tracer != nil {
 		onSystemCallStart(tracer, evm.GetVMContext())
 		if tracer.OnSystemCallEnd != nil {
@@ -236,6 +261,10 @@ func ProcessBeaconBlockRoot(beaconRoot common.Hash, evm *vm.EVM) {
 // ProcessParentBlockHash stores the parent block hash in the history storage contract
 // as per EIP-2935/7709.
 func ProcessParentBlockHash(prevHash common.Hash, evm *vm.EVM) {
+	if evm.ChainConfig().IsGoat() {
+		return
+	}
+
 	if tracer := evm.Config.Tracer; tracer != nil {
 		onSystemCallStart(tracer, evm.GetVMContext())
 		if tracer.OnSystemCallEnd != nil {

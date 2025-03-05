@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 )
 
@@ -91,6 +92,9 @@ type generateParams struct {
 	withdrawals types.Withdrawals // List of withdrawals to include in block (shanghai field)
 	beaconRoot  *common.Hash      // The beacon root (cancun field).
 	noTxs       bool              // Flag whether an empty block without any transaction is expected
+
+	// goat txs from cosmos
+	txs types.Transactions
 }
 
 // generateWork generates a sealing block based on the given parameters.
@@ -117,10 +121,18 @@ func (miner *Miner) generateWork(params *generateParams, witness bool) *newPaylo
 	for _, r := range work.receipts {
 		allLogs = append(allLogs, r.Logs...)
 	}
+	var gasFees = new(big.Int)
 
 	// Collect consensus-layer requests if Prague is enabled.
 	var requests [][]byte
-	if miner.chainConfig.IsPrague(work.header.Number, work.header.Time) {
+	if miner.chainConfig.IsGoat() {
+		gasFees = core.CalculateGoatGasFees(work.header, work.txs, work.receipts)
+		gasRevenue := core.AllocateGoatGasFee(work.state, gasFees)
+		requests, err = core.ProcessGoatRequests(work.header.Number.Uint64(), gasRevenue, allLogs)
+		if err != nil {
+			return &newPayloadResult{err: err}
+		}
+	} else if miner.chainConfig.IsPrague(work.header.Number, work.header.Time) {
 		requests = [][]byte{}
 		// EIP-6110 deposits
 		if err := core.ParseDepositLogs(&requests, allLogs, miner.chainConfig); err != nil {
@@ -140,9 +152,14 @@ func (miner *Miner) generateWork(params *generateParams, witness bool) *newPaylo
 	if err != nil {
 		return &newPayloadResult{err: err}
 	}
+
+	if !miner.chainConfig.IsGoat() {
+		gasFees = totalFees(block, work.receipts)
+	}
+
 	return &newPayloadResult{
 		block:    block,
-		fees:     totalFees(block, work.receipts),
+		fees:     gasFees,
 		sidecars: work.sidecars,
 		stateDB:  work.state,
 		receipts: work.receipts,
@@ -184,10 +201,20 @@ func (miner *Miner) prepareWork(genParams *generateParams, witness bool) (*envir
 		Time:       timestamp,
 		Coinbase:   genParams.coinbase,
 	}
-	// Set the extra field.
-	if len(miner.config.ExtraData) != 0 {
-		header.Extra = miner.config.ExtraData
+
+	if miner.chainConfig.IsGoat() {
+		// Set the extra field.
+		header.Extra = make([]byte, 0, params.GoatHeaderExtraLengthV0)
+		header.Extra = append(header.Extra, uint8(len(genParams.txs)))
+		header.Extra = append(header.Extra,
+			types.DeriveSha(genParams.txs, trie.NewStackTrie(nil)).Bytes()...)
+	} else {
+		// Set the extra field.
+		if len(miner.config.ExtraData) != 0 {
+			header.Extra = miner.config.ExtraData
+		}
 	}
+
 	// Set the randomness field from the beacon chain if it's available.
 	if genParams.random != (common.Hash{}) {
 		header.MixDigest = genParams.random
@@ -230,6 +257,19 @@ func (miner *Miner) prepareWork(genParams *generateParams, witness bool) (*envir
 	if miner.chainConfig.IsPrague(header.Number, header.Time) {
 		core.ProcessParentBlockHash(header.ParentHash, env.evm)
 	}
+
+	// add goat txs
+	if env.gasPool == nil {
+		env.gasPool = new(core.GasPool).AddGas(header.GasLimit)
+	}
+	for _, tx := range genParams.txs {
+		env.state.SetTxContext(tx.Hash(), env.tcount)
+		err = miner.commitTransaction(env, tx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return env, nil
 }
 

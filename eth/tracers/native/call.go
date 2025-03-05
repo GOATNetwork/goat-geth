@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types/goattypes"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/params"
@@ -177,6 +178,55 @@ func (t *callTracer) OnEnter(depth int, typ byte, from common.Address, to common
 	if depth == 0 {
 		call.Gas = t.gasLimit
 	}
+
+	switch {
+	case from == goattypes.LockingExecutor && to == goattypes.LockingContract && len(input) > 4:
+		CompleteUnlockTx := new(goattypes.CompleteUnlockTx)
+		DistributeRewardTx := new(goattypes.DistributeRewardTx)
+
+		switch [4]byte(input[:4]) {
+		case CompleteUnlockTx.MethodId():
+			if err := CompleteUnlockTx.Decode(input); err == nil && CompleteUnlockTx.Token == goattypes.NativeToken {
+				call.Calls = append(call.Calls, callFrame{
+					Type:  vm.CALL,
+					From:  goattypes.LockingContract,
+					To:    &CompleteUnlockTx.Recipient,
+					Value: CompleteUnlockTx.Amount,
+				})
+			}
+		case DistributeRewardTx.MethodId():
+			if err := DistributeRewardTx.Decode(input); err == nil && DistributeRewardTx.GasReward.Sign() > 0 {
+				call.Calls = append(call.Calls, callFrame{
+					Type:  vm.CALL,
+					From:  goattypes.LockingContract,
+					To:    &DistributeRewardTx.Recipient,
+					Value: DistributeRewardTx.GasReward,
+				})
+			}
+		}
+	case from == goattypes.RelayerExecutor && to == goattypes.BridgeContract && len(input) > 4:
+		DepositTx := new(goattypes.DepositTx)
+		if [4]byte(input[:4]) == DepositTx.MethodId() {
+			if err := DepositTx.Decode(input); err == nil {
+				call.Calls = append(call.Calls, callFrame{
+					Type:  vm.CALL,
+					From:  goattypes.BridgeContract,
+					To:    &DepositTx.Target,
+					Value: DepositTx.Amount,
+				})
+
+				if DepositTx.Tax.Sign() > 0 {
+					call.Calls = append(call.Calls, callFrame{
+						Type:  vm.CALL,
+						From:  goattypes.BridgeContract,
+						To:    &goattypes.GoatFoundationContract,
+						Value: DepositTx.Tax,
+					})
+				}
+			}
+		}
+	}
+
 	t.callstack = append(t.callstack, call)
 }
 
