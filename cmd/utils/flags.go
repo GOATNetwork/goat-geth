@@ -134,7 +134,7 @@ var (
 	}
 	NetworkIdFlag = &cli.Uint64Flag{
 		Name:     "networkid",
-		Usage:    "Explicitly set network id (integer)(For testnets: use --sepolia, --holesky instead)",
+		Usage:    "Explicitly set network id (integer)(For testnets: use --sepolia, --holesky, --hoodi instead)",
 		Value:    ethconfig.Defaults.NetworkId,
 		Category: flags.EthCategory,
 	}
@@ -151,6 +151,11 @@ var (
 	HoleskyFlag = &cli.BoolFlag{
 		Name:     "holesky",
 		Usage:    "Holesky network: pre-configured proof-of-stake test network",
+		Category: flags.EthCategory,
+	}
+	HoodiFlag = &cli.BoolFlag{
+		Name:     "hoodi",
+		Usage:    "Hoodi network: pre-configured proof-of-stake test network",
 		Category: flags.EthCategory,
 	}
 	// Dev mode
@@ -233,9 +238,9 @@ var (
 		Value:    2048,
 		Category: flags.EthCategory,
 	}
-	OverrideCancun = &cli.Uint64Flag{
-		Name:     "override.cancun",
-		Usage:    "Manually specify the Cancun fork timestamp, overriding the bundled setting",
+	OverridePrague = &cli.Uint64Flag{
+		Name:     "override.prague",
+		Usage:    "Manually specify the Prague fork timestamp, overriding the bundled setting",
 		Category: flags.EthCategory,
 	}
 	OverrideVerkle = &cli.Uint64Flag{
@@ -271,6 +276,29 @@ var (
 		Usage:    "Number of recent blocks to maintain transactions index for (default = about one year, 0 = entire chain)",
 		Value:    ethconfig.Defaults.TransactionHistory,
 		Category: flags.StateCategory,
+	}
+	ChainHistoryFlag = &cli.StringFlag{
+		Name:     "history.chain",
+		Usage:    `Blockchain history retention ("all" or "postmerge")`,
+		Value:    ethconfig.Defaults.HistoryMode.String(),
+		Category: flags.StateCategory,
+	}
+	LogHistoryFlag = &cli.Uint64Flag{
+		Name:     "history.logs",
+		Usage:    "Number of recent blocks to maintain log search index for (default = about one year, 0 = entire chain)",
+		Value:    ethconfig.Defaults.LogHistory,
+		Category: flags.StateCategory,
+	}
+	LogNoHistoryFlag = &cli.BoolFlag{
+		Name:     "history.logs.disable",
+		Usage:    "Do not maintain log search index",
+		Category: flags.StateCategory,
+	}
+	LogExportCheckpointsFlag = &cli.StringFlag{
+		Name:     "history.logs.export",
+		Usage:    "Export checkpoints to file in go source file format",
+		Category: flags.StateCategory,
+		Value:    "",
 	}
 	// Beacon client light sync settings
 	BeaconApiFlag = &cli.StringSliceFlag{
@@ -936,6 +964,7 @@ var (
 	TestnetFlags = []cli.Flag{
 		SepoliaFlag,
 		HoleskyFlag,
+		HoodiFlag,
 	}
 	// NetworkFlags is the flag group of all built-in supported networks.
 	NetworkFlags = append([]cli.Flag{MainnetFlag, GoatNetworkFlag}, TestnetFlags...)
@@ -961,6 +990,9 @@ func MakeDataDir(ctx *cli.Context) string {
 		}
 		if ctx.Bool(HoleskyFlag.Name) {
 			return filepath.Join(path, "holesky")
+		}
+		if ctx.Bool(HoodiFlag.Name) {
+			return filepath.Join(path, "hoodi")
 		}
 		return path
 	}
@@ -1022,6 +1054,8 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 			urls = params.HoleskyBootnodes
 		case ctx.Bool(SepoliaFlag.Name):
 			urls = params.SepoliaBootnodes
+		case ctx.Bool(HoodiFlag.Name):
+			urls = params.HoodiBootnodes
 		}
 	}
 	cfg.BootstrapNodes = mustParseBootnodes(urls)
@@ -1433,6 +1467,8 @@ func SetDataDir(ctx *cli.Context, cfg *node.Config) {
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "sepolia")
 	case ctx.Bool(HoleskyFlag.Name) && cfg.DataDir == node.DefaultDataDir():
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "holesky")
+	case ctx.Bool(HoodiFlag.Name) && cfg.DataDir == node.DefaultDataDir():
+		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "hoodi")
 	}
 }
 
@@ -1559,7 +1595,7 @@ func setRequiredBlocks(ctx *cli.Context, cfg *ethconfig.Config) {
 // SetEthConfig applies eth-related command line flags to the config.
 func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	// Avoid conflicting network flags
-	flags.CheckExclusive(ctx, MainnetFlag, DeveloperFlag, SepoliaFlag, HoleskyFlag, GoatNetworkFlag)
+	flags.CheckExclusive(ctx, MainnetFlag, DeveloperFlag, SepoliaFlag, HoleskyFlag, HoodiFlag, GoatNetworkFlag)
 	flags.CheckExclusive(ctx, DeveloperFlag, ExternalSignerFlag) // Can't use both ephemeral unlocked and external signer
 
 	// Set configurations from CLI flags
@@ -1594,10 +1630,19 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	if ctx.IsSet(SyncTargetFlag.Name) {
 		cfg.SyncMode = ethconfig.FullSync // dev sync target forces full sync
 	} else if ctx.IsSet(SyncModeFlag.Name) {
-		if err = cfg.SyncMode.UnmarshalText([]byte(ctx.String(SyncModeFlag.Name))); err != nil {
-			Fatalf("invalid --syncmode flag: %v", err)
+		value := ctx.String(SyncModeFlag.Name)
+		if err = cfg.SyncMode.UnmarshalText([]byte(value)); err != nil {
+			Fatalf("--%v: %v", SyncModeFlag.Name, err)
 		}
 	}
+
+	if ctx.IsSet(ChainHistoryFlag.Name) {
+		value := ctx.String(ChainHistoryFlag.Name)
+		if err = cfg.HistoryMode.UnmarshalText([]byte(value)); err != nil {
+			Fatalf("--%s: %v", ChainHistoryFlag.Name, err)
+		}
+	}
+
 	if ctx.IsSet(NetworkIdFlag.Name) {
 		cfg.NetworkId = ctx.Uint64(NetworkIdFlag.Name)
 	}
@@ -1642,19 +1687,25 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		log.Warn("The flag --txlookuplimit is deprecated and will be removed, please use --history.transactions")
 		cfg.TransactionHistory = ctx.Uint64(TxLookupLimitFlag.Name)
 	}
-	if cfg.NoPruning {
+	if ctx.String(GCModeFlag.Name) == "archive" {
 		if cfg.TransactionHistory != 0 {
 			cfg.TransactionHistory = 0
 			log.Warn("Disabled transaction unindexing for archive node")
 		}
 
-		if cfg.StateHistory != 0 {
-			cfg.StateHistory = 0
-			log.Warn("Disabled state pruning for archive node")
+		if cfg.StateScheme != rawdb.HashScheme {
+			cfg.StateScheme = rawdb.HashScheme
+			log.Warn("Forcing hash state-scheme for archive mode")
 		}
-
-		cfg.StateScheme = rawdb.HashScheme
-		log.Warn("Forcing hash state-scheme for archive mode")
+	}
+	if ctx.IsSet(LogHistoryFlag.Name) {
+		cfg.LogHistory = ctx.Uint64(LogHistoryFlag.Name)
+	}
+	if ctx.IsSet(LogNoHistoryFlag.Name) {
+		cfg.LogNoHistory = true
+	}
+	if ctx.IsSet(LogExportCheckpointsFlag.Name) {
+		cfg.LogExportCheckpoints = ctx.String(LogExportCheckpointsFlag.Name)
 	}
 	if ctx.IsSet(CacheFlag.Name) || ctx.IsSet(CacheTrieFlag.Name) {
 		cfg.TrieCleanCache = ctx.Int(CacheFlag.Name) * ctx.Int(CacheTrieFlag.Name) / 100
@@ -1714,6 +1765,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	}
 	// Override any default configs for hard coded networks.
 	switch {
+	case ctx.IsSet(GoatNetworkFlag.Name):
+		genesis := MakeGenesis(ctx)
+		if !ctx.IsSet(NetworkIdFlag.Name) {
+			cfg.NetworkId = genesis.Config.ChainID.Uint64()
+		}
+		cfg.Genesis = genesis
 	case ctx.Bool(MainnetFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1
@@ -1732,12 +1789,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		}
 		cfg.Genesis = core.DefaultSepoliaGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.SepoliaGenesisHash)
-	case ctx.IsSet(GoatNetworkFlag.Name):
-		genesis := MakeGenesis(ctx)
+	case ctx.Bool(HoodiFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = genesis.Config.ChainID.Uint64()
+			cfg.NetworkId = 560048
 		}
-		cfg.Genesis = genesis
+		cfg.Genesis = core.DefaultHoodiGenesisBlock()
+		SetDNSDiscoveryDefaults(cfg, params.HoodiGenesisHash)
 	case ctx.Bool(DeveloperFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
@@ -1783,8 +1840,11 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		// the miner will fail to start.
 		cfg.Miner.PendingFeeRecipient = developer.Address
 
-		if err := ks.Unlock(developer, passphrase); err != nil {
-			Fatalf("Failed to unlock developer account: %v", err)
+		// try to unlock the first keystore account
+		if len(ks.Accounts()) > 0 {
+			if err := ks.Unlock(developer, passphrase); err != nil {
+				Fatalf("Failed to unlock developer account: %v", err)
+			}
 		}
 		log.Info("Using developer account", "address", developer.Address)
 
@@ -1849,6 +1909,8 @@ func MakeBeaconLightConfig(ctx *cli.Context) bparams.ClientConfig {
 		config.ChainConfig = *bparams.SepoliaLightConfig
 	case ctx.Bool(HoleskyFlag.Name):
 		config.ChainConfig = *bparams.HoleskyLightConfig
+	case ctx.Bool(HoodiFlag.Name):
+		config.ChainConfig = *bparams.HoodiLightConfig
 	default:
 		if !customConfig {
 			config.ChainConfig = *bparams.MainnetLightConfig
@@ -2052,7 +2114,7 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node, readonly bool) ethdb.
 		}
 		chainDb = remotedb.New(client)
 	default:
-		chainDb, err = stack.OpenDatabaseWithFreezer("chaindata", cache, handles, ctx.String(AncientFlag.Name), "", readonly)
+		chainDb, err = stack.OpenDatabaseWithFreezer("chaindata", cache, handles, ctx.String(AncientFlag.Name), "eth/db/chaindata/", readonly)
 	}
 	if err != nil {
 		Fatalf("Could not open database: %v", err)
@@ -2126,6 +2188,8 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 		genesis = core.DefaultHoleskyGenesisBlock()
 	case ctx.Bool(SepoliaFlag.Name):
 		genesis = core.DefaultSepoliaGenesisBlock()
+	case ctx.Bool(HoodiFlag.Name):
+		genesis = core.DefaultHoodiGenesisBlock()
 	case ctx.Bool(DeveloperFlag.Name):
 		Fatalf("Developer chains are ephemeral")
 	}
@@ -2138,7 +2202,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node, readonly bool) (*core.BlockCh
 		gspec   = MakeGenesis(ctx)
 		chainDb = MakeChainDatabase(ctx, stack, readonly)
 	)
-	config, err := core.LoadChainConfig(chainDb, gspec)
+	config, _, err := core.LoadChainConfig(chainDb, gspec)
 	if err != nil {
 		Fatalf("%v", err)
 	}
