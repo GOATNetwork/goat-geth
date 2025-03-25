@@ -73,7 +73,7 @@ func TestNewGoatTx(t *testing.T) {
 		t.Fatal("Deposit is not equal")
 	}
 
-	sender, err := Sender(NewCancunSigner(big.NewInt(0)), tx)
+	sender, err := Sender(NewCancunSigner(big.NewInt(1337)), tx)
 	if err != nil {
 		t.Fatalf("Sender: %s", err)
 	}
