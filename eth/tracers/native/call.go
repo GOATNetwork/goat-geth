@@ -216,10 +216,11 @@ func (t *callTracer) OnEnter(depth int, typ byte, from common.Address, to common
 				})
 
 				if DepositTx.Tax.Sign() > 0 {
+					cpy := goattypes.GoatFoundationContract
 					call.Calls = append(call.Calls, callFrame{
 						Type:  vm.CALL,
 						From:  goattypes.BridgeContract,
-						To:    &goattypes.GoatFoundationContract,
+						To:    &cpy,
 						Value: DepositTx.Tax,
 					})
 				}
