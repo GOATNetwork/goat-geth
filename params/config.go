@@ -335,12 +335,12 @@ var (
 
 // NetworkNames are user friendly names to use in the chain spec banner.
 var NetworkNames = map[string]string{
+	GoatMainnetChainConfig.ChainID.String():  "goat-mainnet",
+	GoatTestnet3ChainConfig.ChainID.String(): "goat-testnet3",
+
 	MainnetChainConfig.ChainID.String(): "mainnet",
 	SepoliaChainConfig.ChainID.String(): "sepolia",
 	HoleskyChainConfig.ChainID.String(): "holesky",
-
-	GoatTestnet3ChainConfig.ChainID.String(): "goat-testnet3",
-	GoatMainnetChainConfig.ChainID.String():  "goat-mainnet",
 }
 
 // ChainConfig is the core config which determines the blockchain settings.
