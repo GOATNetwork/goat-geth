@@ -2,9 +2,11 @@ package catalyst
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"math/big"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -142,6 +144,16 @@ func TestGoatForkChoice(t *testing.T) {
 	})
 
 	t.Run("valid goat txs", func(t *testing.T) {
+		// test chain config
+		chaincfg, err := api.GetChainConfig(context.Background())
+		if err != nil {
+			t.Fatal("can't get chain config:", err)
+		}
+
+		if !reflect.DeepEqual(chaincfg, gspec.Config) {
+			t.Fatal("chain config should be equal")
+		}
+
 		var allTxs [][]byte
 
 		goatTxs := types.Transactions{
@@ -223,7 +235,7 @@ func TestGoatForkChoice(t *testing.T) {
 			t.Fatal("forkchoice should not fail:", err)
 		}
 
-		payload, err := api.getPayload(*resp.PayloadID, true)
+		payload, err := api.GetFullPayload(*resp.PayloadID)
 		if err != nil {
 			t.Fatal("get payload should not fail:", err)
 		}
