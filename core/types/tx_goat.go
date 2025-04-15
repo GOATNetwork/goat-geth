@@ -109,6 +109,10 @@ func (tx *GoatTx) rawSignatureValues() (v, r, s *big.Int) {
 
 func (tx *GoatTx) setSignatureValues(chainID, v, r, s *big.Int) {}
 
+func (tx *GoatTx) sigHash(*big.Int) common.Hash {
+	return common.Hash{}
+}
+
 func (tx *GoatTx) encode(b *bytes.Buffer) error {
 	return rlp.Encode(b, tx)
 }

@@ -72,7 +72,7 @@ func TestGoatWorker(t *testing.T) {
 	gensisBlock := chain.GetBlockByNumber(0)
 
 	legacyPool := legacypool.New(testTxPoolConfig, chain)
-	blobPool := blobpool.New(blobpool.Config{}, chain)
+	blobPool := blobpool.New(blobpool.Config{}, chain, legacyPool.HasPendingAuth)
 	txpool, err := txpool.New(testTxPoolConfig.PriceLimit, chain, []txpool.SubPool{legacyPool, blobPool})
 	if err != nil {
 		t.Fatalf("txpool.New failed: %v", err)
