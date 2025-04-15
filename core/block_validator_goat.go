@@ -24,8 +24,18 @@ func (v *BlockValidator) validateGoatBlock(block *types.Block) error {
 	if l := block.Transactions().Len(); l < txLen {
 		return fmt.Errorf("txs length(%d) is less than goat tx length %d", l, txLen)
 	}
-	if hash := types.DeriveSha(block.Transactions()[:txLen], trie.NewStackTrie(nil)); hash != txRoot {
-		return fmt.Errorf("goat tx root hash mismatch (header value %x, calculated %x)", txRoot, hash)
+
+	if txLen == 0 { // faster check for empty tx root
+		if txRoot != types.EmptyTxsHash {
+			return fmt.Errorf("goat tx root hash mismatch (header value %x, calculated %x)", txRoot, types.EmptyTxsHash)
+		}
+	} else {
+		if txLen > params.GoatTxLimitPerBlock {
+			return fmt.Errorf("goat txs length(%d) is greater than max %d", txLen, params.GoatTxLimitPerBlock)
+		}
+		if hash := types.DeriveSha(block.Transactions()[:txLen], trie.NewStackTrie(nil)); hash != txRoot {
+			return fmt.Errorf("goat tx root hash mismatch (header value %x, calculated %x)", txRoot, hash)
+		}
 	}
 	if len(block.Withdrawals()) > 0 {
 		return errors.New("withdrawals not allowed for goat-geth")

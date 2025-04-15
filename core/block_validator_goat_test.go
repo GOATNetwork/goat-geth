@@ -49,6 +49,8 @@ func TestValidatorGoat(t *testing.T) {
 		fmt.Errorf("transaction %d should be goat tx", 0),
 		fmt.Errorf("transaction %d should not be goat tx", 2),
 		fmt.Errorf("blob transaction %d is not allowed", 0),
+		fmt.Errorf("goat txs length(%d) is greater than max %d", params.GoatTxLimitPerBlock+1, params.GoatTxLimitPerBlock),
+		fmt.Errorf("goat tx root hash mismatch (header value %x, calculated %x)", types.EmptyTxsHash, common.HexToHash("599dced66e68d6381c6b644f80360086cdec335987d2099b59a9b6eb1833c526")),
 	}
 
 	for idx, theErr := range errors {
@@ -153,6 +155,27 @@ func TestValidatorGoat(t *testing.T) {
 						Sidecar:    &blobSidecar,
 					})
 					b.AddTx(tx)
+				case 7:
+					for i := range params.GoatTxLimitPerBlock + 1 {
+						tx := types.NewTx(types.NewGoatTx(
+							goattypes.BirdgeModule,
+							goattypes.BitcoinNewBlockAction,
+							uint64(i),
+							&goattypes.NewBtcBlockTx{Hash: common.BigToHash(big.NewInt(int64(i)))},
+						))
+						b.AddTx(tx)
+					}
+				case 8:
+					for i := range 3 {
+						tx := types.NewTx(types.NewGoatTx(
+							goattypes.BirdgeModule,
+							goattypes.BitcoinNewBlockAction,
+							uint64(i),
+							&goattypes.NewBtcBlockTx{Hash: common.BigToHash(big.NewInt(int64(i)))},
+						))
+						b.AddTx(tx)
+					}
+					copy(b.header.Extra[1:], types.EmptyTxsHash[:])
 				}
 			})
 
