@@ -557,20 +557,20 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 	}
 	st.returnGas()
 
-	effectiveTip := msg.GasPrice
-	if rules.IsLondon {
-		effectiveTip = new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee)
-		if effectiveTip.Cmp(msg.GasTipCap) > 0 {
-			effectiveTip = msg.GasTipCap
-		}
-	}
-	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
-
 	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
 		// Skip fee payment when NoBaseFee is set and the fee fields
 		// are 0. This avoids a negative effectiveTip being applied to
 		// the coinbase when simulating calls.
 	} else if !st.evm.ChainConfig().IsGoat() {
+		effectiveTip := msg.GasPrice
+		if rules.IsLondon {
+			effectiveTip = new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee)
+			if effectiveTip.Cmp(msg.GasTipCap) > 0 {
+				effectiveTip = msg.GasTipCap
+			}
+		}
+		effectiveTipU256, _ := uint256.FromBig(effectiveTip)
+
 		fee := new(uint256.Int).SetUint64(st.gasUsed())
 		fee.Mul(fee, effectiveTipU256)
 		st.state.AddBalance(st.evm.Context.Coinbase, fee, tracing.BalanceIncreaseRewardTransactionFee)
