@@ -15,21 +15,20 @@ func (v *BlockValidator) validateGoatBlock(block *types.Block) error {
 		return nil
 	}
 
-	extra := block.Header().Extra
+	extra := block.Extra()
 	if len(extra) != params.GoatHeaderExtraLengthV0 {
 		return fmt.Errorf("no goat tx root found (block %x)", block.Number())
 	}
 
 	txLen, txRoot := int(extra[0]), common.BytesToHash(extra[1:])
-	if l := block.Transactions().Len(); l < txLen {
-		return fmt.Errorf("txs length(%d) is less than goat tx length %d", l, txLen)
-	}
-
 	if txLen == 0 { // faster check for empty tx root
 		if txRoot != types.EmptyTxsHash {
 			return fmt.Errorf("goat tx root hash mismatch (header value %x, calculated %x)", txRoot, types.EmptyTxsHash)
 		}
 	} else {
+		if l := block.Transactions().Len(); l < txLen {
+			return fmt.Errorf("txs length(%d) is less than goat tx length %d", l, txLen)
+		}
 		if txLen > params.GoatTxLimitPerBlock {
 			return fmt.Errorf("goat txs length(%d) is greater than max %d", txLen, params.GoatTxLimitPerBlock)
 		}
