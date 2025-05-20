@@ -68,9 +68,9 @@ func (st *stateTransition) goat(msg *Message, ret []byte, vmerr error) (*Executi
 	}
 
 	return &ExecutionResult{
-		UsedGas:     0,
-		RefundedGas: st.gasUsed(),
-		Err:         vmerr,
-		ReturnData:  ret,
+		UsedGas:    0,
+		MaxUsedGas: st.gasUsed(),
+		Err:        vmerr,
+		ReturnData: ret,
 	}, nil
 }

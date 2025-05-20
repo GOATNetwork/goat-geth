@@ -29,7 +29,7 @@ var legacypoolConfig = legacypool.Config{
 var minerConfig = miner.Config{
 	GasCeil:  30_000_000,
 	GasPrice: big.NewInt(minGasPrice),
-	Recommit: 500 * time.Millisecond,
+	Recommit: 200 * time.Millisecond,
 }
 
 var maxGPOGasPrice = big.NewInt(minGasPrice)
