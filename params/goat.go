@@ -29,6 +29,11 @@ const (
 )
 
 var (
+	// EIP-2935 - Serve historical block hashes from state
+	GoatHistoryStorageAddress = common.HexToAddress("0xBA11eE51ecC770fC9aCdC6F2ad91528549a071De")
+)
+
+var (
 	V5GoatMainnetBootnodes = []string{
 		// Metis
 		"enode://4a66e02862566a770b6e5b5f1f87f2acecf48b1af1755874212ea7a1d96a8dfef1c9c9ec40984f5fc349cb1f165ddb3076f4aa8f519cc5e22ec09d935c5124ed@3.147.156.156:30303",

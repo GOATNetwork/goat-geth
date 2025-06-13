@@ -265,8 +265,9 @@ func ProcessBeaconBlockRoot(beaconRoot common.Hash, evm *vm.EVM) {
 // ProcessParentBlockHash stores the parent block hash in the history storage contract
 // as per EIP-2935/7709.
 func ProcessParentBlockHash(prevHash common.Hash, evm *vm.EVM) {
+	var target = params.HistoryStorageAddress
 	if evm.ChainConfig().IsGoat() {
-		return
+		target = params.GoatHistoryStorageAddress
 	}
 
 	if tracer := evm.Config.Tracer; tracer != nil {
@@ -281,11 +282,11 @@ func ProcessParentBlockHash(prevHash common.Hash, evm *vm.EVM) {
 		GasPrice:  common.Big0,
 		GasFeeCap: common.Big0,
 		GasTipCap: common.Big0,
-		To:        &params.HistoryStorageAddress,
+		To:        &target,
 		Data:      prevHash.Bytes(),
 	}
 	evm.SetTxContext(NewEVMTxContext(msg))
-	evm.StateDB.AddAddressToAccessList(params.HistoryStorageAddress)
+	evm.StateDB.AddAddressToAccessList(target)
 	_, _, err := evm.Call(msg.From, *msg.To, msg.Data, 30_000_000, common.U2560)
 	if err != nil {
 		panic(err)
