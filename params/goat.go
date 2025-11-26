@@ -120,6 +120,7 @@ var (
 		ShanghaiTime:            newUint64(0),
 		CancunTime:              newUint64(0),
 		PragueTime:              newUint64(0),
+		OsakaTime:               newUint64(0),
 		TerminalTotalDifficulty: common.Big0,
 		BlobScheduleConfig:      DefaultBlobSchedule,
 		Goat:                    &GoatConfig{},

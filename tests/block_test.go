@@ -27,6 +27,9 @@ import (
 func TestBlockchain(t *testing.T) {
 	bt := new(testMatcher)
 
+	// skip for goat network
+	bt.skipLoad(`.*ExtraData33.json`)
+
 	// We are running most of GeneralStatetests to tests witness support, even
 	// though they are ran as state tests too. Still, the performance tests are
 	// less about state andmore about EVM number crunching, so skip those.
@@ -80,6 +83,10 @@ func TestExecutionSpecBlocktests(t *testing.T) {
 		t.Skipf("directory %s does not exist", executionSpecBlockchainTestDir)
 	}
 	bt := new(testMatcher)
+
+	// These tests require us to handle scenarios where a system contract is not deployed at a fork
+	bt.skipLoad(".*prague/eip7251_consolidations/test_system_contract_deployment.json")
+	bt.skipLoad(".*prague/eip7002_el_triggerable_withdrawals/test_system_contract_deployment.json")
 
 	bt.walk(t, executionSpecBlockchainTestDir, func(t *testing.T, name string, test *BlockTest) {
 		execBlockTest(t, bt, test)

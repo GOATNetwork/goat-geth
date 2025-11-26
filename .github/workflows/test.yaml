@@ -13,17 +13,23 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
       - uses: actions/cache@v4
         with:
           path: build/cache
           key: ${{ runner.os }}-${{ runner.arch }}-build-tools-cache-${{ hashFiles('build/checksums.txt') }}
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.25"
           check-latest: true
-      - run: go run build/ci.go check_generate
-      - run: go run build/ci.go lint
-      - run: go run build/ci.go check_baddeps
-      - run: go run build/ci.go install
-      - run: go test -tags=ckzg -tags=integrationtests -p 1 ./...
+      - name: Run linters
+        run: |
+          go run build/ci.go lint
+          go run build/ci.go check_generate
+          go run build/ci.go check_baddeps
+      - name: Build and Test
+        run: |
+          go run build/ci.go install
+          go run build/ci.go test -p 1

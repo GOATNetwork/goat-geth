@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/types/goattypes"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -132,7 +131,7 @@ func TestGoatStateTransition(t *testing.T) {
 		lockingExecutorNonce++
 	})
 
-	chain, err := NewBlockChain(rawdb.NewMemoryDatabase(), nil, gspec, nil, engine, vm.Config{}, nil)
+	chain, err := NewBlockChain(rawdb.NewMemoryDatabase(), gspec, engine, nil)
 	if err != nil {
 		t.Fatalf("failed to create tester chain: %v", err)
 	}

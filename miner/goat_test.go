@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/types/goattypes"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
@@ -64,7 +63,7 @@ func TestGoatWorker(t *testing.T) {
 	}
 	signer := types.LatestSigner(gspec.Config)
 
-	chain, err := core.NewBlockChain(db, &core.CacheConfig{TrieDirtyDisabled: true}, gspec, nil, beaconEngine, vm.Config{}, nil)
+	chain, err := core.NewBlockChain(db, gspec, beaconEngine, nil)
 	if err != nil {
 		t.Fatalf("core.NewBlockChain failed: %v", err)
 	}

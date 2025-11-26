@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/triedb"
@@ -131,7 +130,7 @@ func testSetupGenesis(t *testing.T, scheme string) {
 				tdb := triedb.NewDatabase(db, newDbConfig(scheme))
 				oldcustomg.Commit(db, tdb)
 
-				bc, _ := NewBlockChain(db, DefaultCacheConfigWithScheme(scheme), &oldcustomg, nil, ethash.NewFullFaker(), vm.Config{}, nil)
+				bc, _ := NewBlockChain(db, &oldcustomg, ethash.NewFullFaker(), DefaultConfig().WithStateScheme(scheme))
 				defer bc.Stop()
 
 				_, blocks, _ := GenerateChainWithGenesis(&oldcustomg, ethash.NewFaker(), 4, nil)
@@ -257,7 +256,9 @@ func newDbConfig(scheme string) *triedb.Config {
 	if scheme == rawdb.HashScheme {
 		return triedb.HashDefaults
 	}
-	return &triedb.Config{PathDB: pathdb.Defaults}
+	config := *pathdb.Defaults
+	config.NoAsyncFlush = true
+	return &triedb.Config{PathDB: &config}
 }
 
 func TestVerkleGenesisCommit(t *testing.T) {
@@ -307,14 +308,21 @@ func TestVerkleGenesisCommit(t *testing.T) {
 		},
 	}
 
-	expected := common.FromHex("018d20eebb130b5e2b796465fe36aafab650650729a92435aec071bf2386f080")
+	expected := common.FromHex("19056b480530799a4fdaa9fd9407043b965a3a5c37b4d2a1a9a4f3395a327561")
 	got := genesis.ToBlock().Root().Bytes()
 	if !bytes.Equal(got, expected) {
 		t.Fatalf("invalid genesis state root, expected %x, got %x", expected, got)
 	}
 
 	db := rawdb.NewMemoryDatabase()
-	triedb := triedb.NewDatabase(db, triedb.VerkleDefaults)
+
+	config := *pathdb.Defaults
+	config.NoAsyncFlush = true
+
+	triedb := triedb.NewDatabase(db, &triedb.Config{
+		IsVerkle: true,
+		PathDB:   &config,
+	})
 	block := genesis.MustCommit(db, triedb)
 	if !bytes.Equal(block.Root().Bytes(), expected) {
 		t.Fatalf("invalid genesis state root, expected %x, got %x", expected, block.Root())

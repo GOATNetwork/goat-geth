@@ -189,7 +189,7 @@ func CalculateGoatGasFees(header *types.Header, txs []*types.Transaction, receip
 		if gasUsed == 0 { // It's the goat tx
 			continue
 		}
-		minerFee := tx.EffectiveGasTipValue(header.BaseFee)
+		minerFee, _ := tx.EffectiveGasTip(header.BaseFee)
 		gasFees.Add(gasFees, new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), minerFee))
 	}
 	return gasFees
