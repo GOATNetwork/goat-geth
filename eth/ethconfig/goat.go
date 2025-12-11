@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/miner"
 )
 
-const minGasPrice = 5000000
+const minGasPrice = 130000 // 0.00013 Gwei
 
 var legacypoolConfig = legacypool.Config{
 	Journal:   "transactions.rlp",
@@ -27,7 +27,7 @@ var legacypoolConfig = legacypool.Config{
 }
 
 var minerConfig = miner.Config{
-	GasCeil:  30_000_000,
+	GasCeil:  60_000_000,
 	GasPrice: big.NewInt(minGasPrice),
 	Recommit: 200 * time.Millisecond,
 }
