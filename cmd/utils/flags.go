@@ -2274,10 +2274,9 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 		netwk := ctx.String(GoatNetworkFlag.Name)
 		switch netwk {
 		case params.GoatMainnetName:
-			genesis = core.DefaultGoatMainnetGenesisBlock()
+			Fatalf("This release is for testnet3 only, mainnet is not supported")
 		case params.GoatTestnet3Name:
-			// genesis = core.DefaultGoatTestnet3GenesisBlock()
-			Fatalf("testnet3 is removed from this version, please use v0.1.x instead")
+			genesis = core.DefaultGoatTestnet3GenesisBlock()
 		default:
 			Fatalf("unknown goat network: %s", netwk)
 		}
