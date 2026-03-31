@@ -8,10 +8,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/types/goattypes"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
 
-func (st *stateTransition) goat(msg *Message, ret []byte, vmerr error) (*ExecutionResult, error) {
+func (st *stateTransition) goat(rules params.Rules, msg *Message, ret []byte, vmerr error) (*ExecutionResult, error) {
 	if vmerr != nil {
 		if vmerr == vm.ErrExecutionReverted {
 			reason, errUnpack := abi.UnpackRevert(ret)
@@ -59,12 +60,15 @@ func (st *stateTransition) goat(msg *Message, ret []byte, vmerr error) (*Executi
 		if !CanTransfer(st.state, goattypes.LockingContract, amount) {
 			return nil, fmt.Errorf("goat tx error (amount too large to distribute: %s)", v.Amount)
 		}
-		Transfer(st.state, goattypes.LockingContract, v.Address, amount)
+		Transfer(st.state, goattypes.LockingContract, v.Address, amount, &rules)
 	}
 
-	// refund all of gas used
 	if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
 		st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.initialGas, tracing.GasChangeTxRefunds)
+	}
+
+	if rules.IsAmsterdam {
+		st.evm.StateDB.EmitLogsForBurnAccounts()
 	}
 
 	return &ExecutionResult{

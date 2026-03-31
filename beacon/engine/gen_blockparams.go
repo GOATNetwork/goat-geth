@@ -21,6 +21,7 @@ func (p PayloadAttributes) MarshalJSON() ([]byte, error) {
 		SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
 		Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 		BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
+		SlotNumber            *hexutil.Uint64     `json:"slotNumber"`
 		GoatTxs               []hexutil.Bytes     `json:"goatTxs,omitempty"  gencodec:"optional"`
 	}
 	var enc PayloadAttributes
@@ -29,6 +30,7 @@ func (p PayloadAttributes) MarshalJSON() ([]byte, error) {
 	enc.SuggestedFeeRecipient = p.SuggestedFeeRecipient
 	enc.Withdrawals = p.Withdrawals
 	enc.BeaconRoot = p.BeaconRoot
+	enc.SlotNumber = (*hexutil.Uint64)(p.SlotNumber)
 	if p.GoatTxs != nil {
 		enc.GoatTxs = make([]hexutil.Bytes, len(p.GoatTxs))
 		for k, v := range p.GoatTxs {
@@ -46,6 +48,7 @@ func (p *PayloadAttributes) UnmarshalJSON(input []byte) error {
 		SuggestedFeeRecipient *common.Address     `json:"suggestedFeeRecipient" gencodec:"required"`
 		Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 		BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
+		SlotNumber            *hexutil.Uint64     `json:"slotNumber"`
 		GoatTxs               []hexutil.Bytes     `json:"goatTxs,omitempty"  gencodec:"optional"`
 	}
 	var dec PayloadAttributes
@@ -69,6 +72,9 @@ func (p *PayloadAttributes) UnmarshalJSON(input []byte) error {
 	}
 	if dec.BeaconRoot != nil {
 		p.BeaconRoot = dec.BeaconRoot
+	}
+	if dec.SlotNumber != nil {
+		p.SlotNumber = (*uint64)(dec.SlotNumber)
 	}
 	if dec.GoatTxs != nil {
 		p.GoatTxs = make([][]byte, len(dec.GoatTxs))

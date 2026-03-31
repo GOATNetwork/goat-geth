@@ -217,7 +217,7 @@ func TestGoatWorker(t *testing.T) {
 	random := common.Hash{1}
 
 	t.Run("Resolve", func(t *testing.T) {
-		payload, err := miner.BuildPayload(&BuildPayloadArgs{
+		payload, err := miner.BuildPayload(t.Context(), &BuildPayloadArgs{
 			Parent:       gensisBlock.Hash(),
 			Timestamp:    timestamp,
 			FeeRecipient: testAddr,
@@ -267,7 +267,7 @@ func TestGoatWorker(t *testing.T) {
 	})
 
 	t.Run("ResolveFull", func(t *testing.T) {
-		payload, err := miner.BuildPayload(&BuildPayloadArgs{
+		payload, err := miner.BuildPayload(t.Context(), &BuildPayloadArgs{
 			Parent:       gensisBlock.Hash(),
 			Timestamp:    timestamp,
 			FeeRecipient: testAddr,

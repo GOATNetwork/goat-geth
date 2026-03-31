@@ -3,10 +3,10 @@ package core
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/types/goattypes"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/holiman/uint256"
 )
 
@@ -15,7 +15,7 @@ var (
 	gfMaxBasePoint = big.NewInt(1e4)
 )
 
-func AllocateGoatGasFee(statedb *state.StateDB, gasFees *big.Int) *big.Int {
+func AllocateGoatGasFee(statedb vm.StateDB, gasFees *big.Int) *big.Int {
 	if gasFees.Sign() == 0 {
 		return new(big.Int)
 	}

@@ -109,7 +109,7 @@ func TestGoatForkChoice(t *testing.T) {
 		}
 
 		{
-			resp, err := api.ForkchoiceUpdatedV3(engine.ForkchoiceStateV1{
+			resp, err := api.ForkchoiceUpdatedV3(t.Context(), engine.ForkchoiceStateV1{
 				HeadBlockHash: genesis.Hash(),
 			}, &engine.PayloadAttributes{
 				Timestamp:   uint64(time.Now().UTC().Unix()),
@@ -126,7 +126,7 @@ func TestGoatForkChoice(t *testing.T) {
 		}
 
 		{
-			resp, err := api.ForkchoiceUpdatedV3(engine.ForkchoiceStateV1{
+			resp, err := api.ForkchoiceUpdatedV3(t.Context(), engine.ForkchoiceStateV1{
 				HeadBlockHash: genesis.Hash(),
 			}, &engine.PayloadAttributes{
 				Timestamp:   uint64(time.Now().UTC().Unix()),
@@ -223,7 +223,7 @@ func TestGoatForkChoice(t *testing.T) {
 			allTxs = append(allTxs, raw)
 		}
 
-		resp, err := api.ForkchoiceUpdatedV3(engine.ForkchoiceStateV1{
+		resp, err := api.ForkchoiceUpdatedV3(t.Context(), engine.ForkchoiceStateV1{
 			HeadBlockHash: genesis.Hash(),
 		}, &engine.PayloadAttributes{
 			Timestamp:   uint64(time.Now().UTC().Unix()),
@@ -235,7 +235,7 @@ func TestGoatForkChoice(t *testing.T) {
 			t.Fatal("forkchoice should not fail:", err)
 		}
 
-		payload, err := api.GetFullPayload(*resp.PayloadID)
+		payload, err := api.GetFullPayload(t.Context(), *resp.PayloadID)
 		if err != nil {
 			t.Fatal("get payload should not fail:", err)
 		}
@@ -286,11 +286,12 @@ func TestGoatForkChoice(t *testing.T) {
 			t.Fatalf("bridge request amount should be equal: %d != %d", bridgeReqs.Withdraws[0].Amount, 499900)
 		}
 
-		requests := make([]hexutil.Bytes, len(payload.Requests))
-		for idx, req := range payload.Requests {
-			requests[idx] = req
-		}
-		status, err := api.NewPayloadV4(*payload.ExecutionPayload, []common.Hash{}, new(common.Hash), requests)
+		status, err := api.PutFullPayload(t.Context(), &FullPayload{
+			Data:            *payload.ExecutionPayload,
+			VersionedHashes: []common.Hash{},
+			BeaconRoot:      new(common.Hash),
+			Requests:        payload.Requests,
+		})
 		if err != nil {
 			t.Fatal("new payload should not fail:", err)
 		}
@@ -298,7 +299,7 @@ func TestGoatForkChoice(t *testing.T) {
 			t.Fatalf("new payload should be valid: %v", status)
 		}
 
-		_, err = api.ForkchoiceUpdatedV3(engine.ForkchoiceStateV1{
+		_, err = api.ForkchoiceUpdatedV3(t.Context(), engine.ForkchoiceStateV1{
 			HeadBlockHash:      payload.ExecutionPayload.BlockHash,
 			SafeBlockHash:      payload.ExecutionPayload.BlockHash,
 			FinalizedBlockHash: payload.ExecutionPayload.BlockHash,
