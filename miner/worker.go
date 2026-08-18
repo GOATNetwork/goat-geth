@@ -199,7 +199,7 @@ func (miner *Miner) generateWork(ctx context.Context, genParam *generateParams, 
 	if miner.chainConfig.IsGoat() {
 		gasFees = core.CalculateGoatGasFees(work.header, work.txs, work.receipts)
 		gasRevenue := core.AllocateGoatGasFee(work.state, gasFees)
-		requests, err = core.ProcessGoatRequests(work.header.Number.Uint64(), gasRevenue, allLogs)
+		requests, err = core.ProcessGoatRequests(work.header.Number.Uint64(), gasRevenue, allLogs, miner.chainConfig.IsRotator(work.header.Time))
 		if err != nil {
 			return &newPayloadResult{err: err}
 		}

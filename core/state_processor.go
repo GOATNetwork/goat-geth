@@ -157,7 +157,7 @@ func postExecution(ctx context.Context, config *params.ChainConfig, block *types
 	// Read requests if Prague is enabled.
 	if config.IsGoat() {
 		reward := AllocateGoatGasFee(evm.StateDB, goatGasFees)
-		goatRequests, err := ProcessGoatRequests(block.NumberU64(), reward, allLogs)
+		goatRequests, err := ProcessGoatRequests(block.NumberU64(), reward, allLogs, config.IsRotator(block.Time()))
 		if err != nil {
 			return nil, err
 		}

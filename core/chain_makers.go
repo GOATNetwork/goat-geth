@@ -329,7 +329,7 @@ func (b *BlockGen) collectRequests(readonly bool) (requests [][]byte) {
 			blockLogs = append(blockLogs, r.Logs...)
 		}
 		gasRevenue := AllocateGoatGasFee(statedb, CalculateGoatGasFees(b.header, b.txs, b.receipts))
-		goatRequests, err := ProcessGoatRequests(b.Number().Uint64(), gasRevenue, blockLogs)
+		goatRequests, err := ProcessGoatRequests(b.Number().Uint64(), gasRevenue, blockLogs, b.cm.config.IsRotator(b.header.Time))
 		if err != nil {
 			panic(fmt.Sprintf("failed to parse goat logs: %v", err))
 		}

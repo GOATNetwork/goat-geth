@@ -395,7 +395,7 @@ func (sim *simulator) processBlock(ctx context.Context, block *simBlock, header,
 	// Process EIP-7685 requests
 	var requests [][]byte
 	if sim.chainConfig.IsGoat() {
-		goatRequests, err := core.ProcessGoatRequests(header.Number.Uint64(), big.NewInt(0), allLogs)
+		goatRequests, err := core.ProcessGoatRequests(header.Number.Uint64(), big.NewInt(0), allLogs, sim.chainConfig.IsRotator(header.Time))
 		if err != nil {
 			return nil, nil, nil, err
 		}

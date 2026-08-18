@@ -39,8 +39,12 @@ func AllocateGoatGasFee(statedb vm.StateDB, gasFees *big.Int) *big.Int {
 	return gas
 }
 
-// ProcessGoatRequests processes goat requests
-func ProcessGoatRequests(height uint64, reward *big.Int, allLogs []*types.Log) ([][]byte, error) {
+// ProcessGoatRequests processes goat requests.
+//
+// rotator says whether logs from the rotator contract are honoured yet.
+// Turning them into requests changes the requests hash of any block carrying
+// one, so it is gated on a fork rather than on the contract merely existing.
+func ProcessGoatRequests(height uint64, reward *big.Int, allLogs []*types.Log, rotator bool) ([][]byte, error) {
 	var (
 		lockingRequests goattypes.LockingRequests
 		bridgeRequests  goattypes.BridgeRequests
@@ -93,6 +97,18 @@ func ProcessGoatRequests(height uint64, reward *big.Int, allLogs []*types.Log) (
 				}
 				bridgeRequests.MinDeposit = append(bridgeRequests.MinDeposit, req)
 			}
+		case goattypes.RotatorContract:
+			// not a predeploy, and only honoured from the fork on
+			if !rotator || len(log.Topics) != 1 {
+				continue
+			}
+			if log.Topics[0] == goattypes.RotateEventTopic {
+				req, err := goattypes.UnpackIntoRotateRequest(log.Data)
+				if err != nil {
+					return nil, err
+				}
+				lockingRequests.Rotates = append(lockingRequests.Rotates, req)
+			}
 		case goattypes.LockingContract:
 			if len(log.Topics) != 1 {
 				continue
@@ -104,12 +120,6 @@ func ProcessGoatRequests(height uint64, reward *big.Int, allLogs []*types.Log) (
 					return nil, err
 				}
 				lockingRequests.Creates = append(lockingRequests.Creates, req)
-			case goattypes.RotateEventTopic:
-				req, err := goattypes.UnpackIntoRotateRequest(log.Data)
-				if err != nil {
-					return nil, err
-				}
-				lockingRequests.Rotates = append(lockingRequests.Rotates, req)
 			case goattypes.LockEventTopic:
 				req, err := goattypes.UnpackIntoLockRequest(log.Data)
 				if err != nil {

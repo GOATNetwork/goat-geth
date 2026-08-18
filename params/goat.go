@@ -6,7 +6,20 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type GoatConfig struct{}
+type GoatConfig struct {
+	// RotatorTime is when logs from the rotator contract start being turned
+	// into requests. Honouring them changes the requests hash of any block
+	// that carries one, so every node has to start at the same moment.
+	RotatorTime *uint64 `json:"rotatorTime,omitempty"`
+}
+
+// IsRotator reports whether the rotator contract is honoured at the given time.
+func (c *ChainConfig) IsRotator(time uint64) bool {
+	if c.Goat == nil || c.Goat.RotatorTime == nil {
+		return false
+	}
+	return *c.Goat.RotatorTime <= time
+}
 
 // String implements the stringer interface, returning the consensus engine details.
 func (c GoatConfig) String() string {

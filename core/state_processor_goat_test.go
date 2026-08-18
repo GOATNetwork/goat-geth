@@ -1,7 +1,10 @@
 package core
 
 import (
+	"bytes"
+	"encoding/hex"
 	"math/big"
+	"os"
 	"reflect"
 	"testing"
 
@@ -249,7 +252,7 @@ func TestProcessGoatRequests(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ProcessGoatRequests(tt.args.height, tt.args.reward, tt.args.allLogs)
+			got, err := ProcessGoatRequests(tt.args.height, tt.args.reward, tt.args.allLogs, true)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ProcessGoatRequests() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -388,5 +391,64 @@ func TestProcessGoatGasFee(t *testing.T) {
 
 	if requestsHash != *gotRequestsHash {
 		t.Errorf("RequestsHash expected %x got %x", requestsHash, *gotRequestsHash)
+	}
+}
+
+// The rotator is not a predeploy, so its logs are only honoured from the fork
+// on. Before that they have to be invisible, or the requests hash would differ
+// between nodes.
+func TestRotatorLogsAreForkGated(t *testing.T) {
+	rotate := &goattypes.RotateRequest{
+		Validator: common.HexToAddress("0xa38461b80d68f38b91e4fbcaf17356f9522b9480"),
+		KeyType:   1,
+		Pubkey:    bytes.Repeat([]byte{0xab}, 1952),
+		Proof:     bytes.Repeat([]byte{0xcd}, 3309),
+	}
+	data, err := os.ReadFile("types/goattypes/testdata/rotate_event.hex")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	raw, err := hex.DecodeString(string(bytes.TrimSpace(data)))
+	if err != nil {
+		t.Fatalf("decode fixture: %v", err)
+	}
+	logs := []*types.Log{{
+		Address: goattypes.RotatorContract,
+		Topics:  []common.Hash{goattypes.RotateEventTopic},
+		Data:    raw,
+	}}
+
+	before, err := ProcessGoatRequests(1, new(big.Int), logs, false)
+	if err != nil {
+		t.Fatalf("before the fork: %v", err)
+	}
+	after, err := ProcessGoatRequests(1, new(big.Int), logs, true)
+	if err != nil {
+		t.Fatalf("after the fork: %v", err)
+	}
+	if len(after) <= len(before) {
+		t.Fatalf("the rotate request should only appear after the fork: %d then %d", len(before), len(after))
+	}
+
+	_, _, locking, err := goattypes.DecodeRequests(after)
+	if err != nil {
+		t.Fatalf("DecodeRequests: %v", err)
+	}
+	if len(locking.Rotates) != 1 {
+		t.Fatalf("decoded %d rotations, want 1", len(locking.Rotates))
+	}
+	if locking.Rotates[0].Validator != rotate.Validator ||
+		!bytes.Equal(locking.Rotates[0].Pubkey, rotate.Pubkey) {
+		t.Fatal("round trip mismatch")
+	}
+
+	// a log from any other address is ignored even after the fork
+	logs[0].Address = common.HexToAddress("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+	other, err := ProcessGoatRequests(1, new(big.Int), logs, true)
+	if err != nil {
+		t.Fatalf("foreign address: %v", err)
+	}
+	if len(other) != len(before) {
+		t.Fatal("only the rotator contract may announce a rotation")
 	}
 }
