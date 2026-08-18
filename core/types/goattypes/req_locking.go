@@ -18,6 +18,7 @@ type LockingRequests struct {
 	Grants           []*GrantRequest
 	UpdateWeights    []*UpdateTokenWeightRequest
 	UpdateThresholds []*UpdateTokenThresholdRequest
+	Rotates          []*RotateRequest
 }
 
 func (reqs *LockingRequests) Encode() (res [][]byte) {
@@ -35,6 +36,14 @@ func (reqs *LockingRequests) Encode() (res [][]byte) {
 			creates = append(creates, reqs.Creates[i].Encode()...)
 		}
 		res = append(res, creates)
+	}
+
+	if l := len(reqs.Rotates); l > 0 {
+		rotates := []byte{RotateRequestType}
+		for i := range l {
+			rotates = append(rotates, reqs.Rotates[i].Encode()...)
+		}
+		res = append(res, rotates)
 	}
 
 	if l := len(reqs.Locks); l > 0 {
@@ -514,5 +523,156 @@ func (req *GrantRequest) DecodeReader(reader io.Reader) error {
 func (req *GrantRequest) Copy() Request {
 	return &GrantRequest{
 		Amount: new(big.Int).Set(req.Amount),
+	}
+}
+
+// rotateHeaderSize is the fixed part of a RotateRequest: the validator id, the
+// key type and the two lengths.
+const rotateHeaderSize = 20 + 1 + 8 + 8
+
+// maxRotateFieldSize bounds the two variable length fields. ML-DSA-65 public
+// keys are 1952 bytes and its signatures 3309, so 8 KiB leaves room for a
+// larger scheme without letting a malformed log make us allocate freely.
+const maxRotateFieldSize = 8 << 10
+
+// RotateRequest asks the consensus layer to replace a validator's consensus
+// public key. Unlike every other request type it is variable length, so it
+// carries its own lengths: DecodeRequests concatenates same-typed requests and
+// tells them apart by consuming exactly as many bytes as each one declares.
+type RotateRequest struct {
+	// Validator is the id the validator was created with; it does not change
+	// when the consensus key does.
+	Validator common.Address
+	KeyType   uint8
+	Pubkey    []byte
+	// Proof shows possession of the new key. It cannot be checked on the
+	// execution layer, so it is carried through to the consensus layer.
+	Proof []byte
+}
+
+// UnpackIntoRotateRequest decodes the abi encoding of
+// Rotate(address,uint8,bytes,bytes). The two dynamic fields make this the only
+// event whose data is not a sequence of fixed size words.
+func UnpackIntoRotateRequest(data []byte) (*RotateRequest, error) {
+	// four head words: validator, keyType, and an offset for each bytes field
+	if len(data) < 128 {
+		return nil, fmt.Errorf("invalid Rotate event data length: want at least 128, have %d", len(data))
+	}
+
+	req := &RotateRequest{
+		Validator: common.BytesToAddress(data[:32]),
+		KeyType:   data[63],
+	}
+	// a uint8 occupies a whole word and everything above the last byte must be
+	// zero padding
+	for _, b := range data[32:63] {
+		if b != 0 {
+			return nil, errors.New("invalid Rotate key type")
+		}
+	}
+
+	pubkey, err := unpackRotateBytes(data, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Rotate pubkey: %w", err)
+	}
+	proof, err := unpackRotateBytes(data, 96)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Rotate proof: %w", err)
+	}
+	req.Pubkey, req.Proof = pubkey, proof
+	return req, nil
+}
+
+// unpackRotateBytes reads the dynamic bytes field whose offset word starts at
+// head.
+func unpackRotateBytes(data []byte, head int) ([]byte, error) {
+	offset := new(big.Int).SetBytes(data[head : head+32])
+	if !offset.IsUint64() {
+		return nil, errors.New("offset out of range")
+	}
+	start := offset.Uint64()
+	if start > uint64(len(data)) || uint64(len(data))-start < 32 {
+		return nil, errors.New("offset out of range")
+	}
+
+	size := new(big.Int).SetBytes(data[start : start+32])
+	if !size.IsUint64() || size.Uint64() > maxRotateFieldSize {
+		return nil, errors.New("length out of range")
+	}
+	length := size.Uint64()
+	if uint64(len(data))-start-32 < length {
+		return nil, errors.New("truncated")
+	}
+	return common.CopyBytes(data[start+32 : start+32+length]), nil
+}
+
+func (req *RotateRequest) RequestType() byte { return RotateRequestType }
+
+func (req *RotateRequest) Encode() []byte {
+	res := make([]byte, 0, rotateHeaderSize+len(req.Pubkey)+len(req.Proof))
+	res = append(res, req.Validator.Bytes()...)
+	res = append(res, req.KeyType)
+	res = append(res, EncodeUint64(uint64(len(req.Pubkey)), uint64(len(req.Proof)))...)
+	res = append(res, req.Pubkey...)
+	res = append(res, req.Proof...)
+	return res
+}
+
+func (req *RotateRequest) Decode(input []byte) error {
+	if len(input) < rotateHeaderSize {
+		return errors.New("invalid RotateRequest bytes length")
+	}
+
+	sizes, err := DecodeUint64(input[21:rotateHeaderSize], 2)
+	if err != nil {
+		return err
+	}
+	pubkeyLen, proofLen := sizes[0], sizes[1]
+	if pubkeyLen > maxRotateFieldSize || proofLen > maxRotateFieldSize {
+		return errors.New("RotateRequest field too large")
+	}
+	if uint64(len(input)) != rotateHeaderSize+pubkeyLen+proofLen {
+		return errors.New("invalid RotateRequest bytes length")
+	}
+
+	req.Validator = common.BytesToAddress(input[:20])
+	req.KeyType = input[20]
+	req.Pubkey = common.CopyBytes(input[rotateHeaderSize : rotateHeaderSize+pubkeyLen])
+	req.Proof = common.CopyBytes(input[rotateHeaderSize+pubkeyLen:])
+	return nil
+}
+
+// DecodeReader reads exactly one request from a stream of concatenated
+// requests. It reads the header first to learn how much more to take, which is
+// what makes a variable length request type work inside DecodeRequests' loop.
+func (req *RotateRequest) DecodeReader(reader io.Reader) error {
+	header := make([]byte, rotateHeaderSize)
+	if _, err := io.ReadFull(reader, header); err != nil {
+		return err
+	}
+
+	sizes, err := DecodeUint64(header[21:], 2)
+	if err != nil {
+		return err
+	}
+	pubkeyLen, proofLen := sizes[0], sizes[1]
+	if pubkeyLen > maxRotateFieldSize || proofLen > maxRotateFieldSize {
+		return errors.New("RotateRequest field too large")
+	}
+
+	input := make([]byte, rotateHeaderSize+pubkeyLen+proofLen)
+	copy(input, header)
+	if _, err := io.ReadFull(reader, input[rotateHeaderSize:]); err != nil {
+		return err
+	}
+	return req.Decode(input)
+}
+
+func (req *RotateRequest) Copy() Request {
+	return &RotateRequest{
+		Validator: req.Validator,
+		KeyType:   req.KeyType,
+		Pubkey:    common.CopyBytes(req.Pubkey),
+		Proof:     common.CopyBytes(req.Proof),
 	}
 }

@@ -104,6 +104,12 @@ func ProcessGoatRequests(height uint64, reward *big.Int, allLogs []*types.Log) (
 					return nil, err
 				}
 				lockingRequests.Creates = append(lockingRequests.Creates, req)
+			case goattypes.RotateEventTopic:
+				req, err := goattypes.UnpackIntoRotateRequest(log.Data)
+				if err != nil {
+					return nil, err
+				}
+				lockingRequests.Rotates = append(lockingRequests.Rotates, req)
 			case goattypes.LockEventTopic:
 				req, err := goattypes.UnpackIntoLockRequest(log.Data)
 				if err != nil {

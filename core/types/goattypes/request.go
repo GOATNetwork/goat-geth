@@ -24,7 +24,7 @@ const (
 	GrantRequestType
 	UpdateTokenWeightRequestType
 	UpdateTokenThresholdRequestType
-	_
+	RotateRequestType
 	_
 	_
 	WithdrawalRequestType
@@ -63,6 +63,9 @@ var (
 	GrantEventTopic                = common.HexToHash("0x41891e803e84c188180caa0f073ce4235b8002dac887a69fcdcae1d295951fa0")
 	UpdateTokenWeightEventTopic    = common.HexToHash("0xb59bf4596e5415117fb4625044cb5b0ca5b273742825b026d06afe82a48e6217")
 	UpdateTokenThresholdEventTopic = common.HexToHash("0x326e29ab1c62c7d77fdfb302916e82e1a54f3b9961db75ee7e18afe488a0e92d")
+
+	// Rotate(address validator, uint8 keyType, bytes pubkey, bytes proof)
+	RotateEventTopic = common.HexToHash("0x3b0ff7574d27e22987f7a966ac1f3011419f7348793b20310a9b5764bab6152e")
 )
 
 type Request interface {
@@ -116,6 +119,14 @@ func DecodeRequests(reqs [][]byte) (bridge BridgeRequests, relayer RelayerReques
 					return
 				}
 				locking.Gas = append(locking.Gas, inner)
+			}
+		case RotateRequestType:
+			for reader.Len() != 0 {
+				inner := new(RotateRequest)
+				if err = inner.DecodeReader(reader); err != nil {
+					return
+				}
+				locking.Rotates = append(locking.Rotates, inner)
 			}
 		case WithdrawalRequestType:
 			for reader.Len() != 0 {
